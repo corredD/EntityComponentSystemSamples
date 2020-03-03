@@ -70,12 +70,12 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
             Vector2 mousePosition = Input.mousePosition;     
             Vector3 p = Camera.main.ScreenToWorldPoint(new Vector3(mousePosition.x,mousePosition.y,10.0f));
             Debug.Log(p);   //new float3(0, 1, 0)
-            //CreateDynamicBody(new float3(p.x,p.y,p.z), quaternion.identity, sourceCollider, float3.zero, float3.zero, 1.0f);
+            CreateDynamicBody(new float3(p.x,p.y,p.z), quaternion.identity, sourceCollider, float3.zero, float3.zero, 1.0f);
             
             var instance = BasePhysicsDemo.DefaultWorld.EntityManager.Instantiate(sourceEntity);
             BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Translation { Value = new float3(p.x,p.y,p.z) });
             BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Rotation { Value = quaternion.identity });
-            //BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new PhysicsCollider { Value = sourceCollider });
+            BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new PhysicsCollider { Value = sourceCollider });
             
         }       
     }
