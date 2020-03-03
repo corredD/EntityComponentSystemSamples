@@ -2,9 +2,13 @@
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
+using UnityEngine;
 
 public class CompoundDemo : BasePhysicsDemo
 {
+    public GameObject prefab;
+    BlobAssetReference<Unity.Physics.Collider> collider;
+    
     protected unsafe override void Start()
     {
         //float3 gravity = new float3(0, -9.81f, 0);
@@ -52,9 +56,23 @@ public class CompoundDemo : BasePhysicsDemo
                 }
             };
 
-            BlobAssetReference<Unity.Physics.Collider> collider = CompoundCollider.Create(children);
+            collider = CompoundCollider.Create(children);
             children.Dispose();
 
+            CreateDynamicBody(new float3(0, 1, 0), quaternion.identity, collider, float3.zero, float3.zero, 1.0f);
+            CreateDynamicBody(new float3(0, 2, 0), quaternion.identity, collider, float3.zero, float3.zero, 1.0f);
+            CreateDynamicBody(new float3(0, 3, 0), quaternion.identity, collider, float3.zero, float3.zero, 1.0f);
+            CreateDynamicBody(new float3(0, 4, 0), quaternion.identity, collider, float3.zero, float3.zero, 1.0f);
+
+        }
+    }
+
+    void Update(){
+        //Debug.Log("mouse position ");
+        if (Input.GetMouseButtonDown(0))
+        {   
+            Vector2 mousePosition = Input.mousePosition;     
+            Debug.Log(mousePosition);   
             CreateDynamicBody(new float3(0, 1, 0), quaternion.identity, collider, float3.zero, float3.zero, 1.0f);
         }
     }
