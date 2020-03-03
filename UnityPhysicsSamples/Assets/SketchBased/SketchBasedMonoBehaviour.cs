@@ -1,87 +1,80 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-
+﻿using System;
+using Unity.Physics;
 using Unity.Entities;
-
-using Unity.Transforms;
-using Unity.Collections;
-using Unity.Rendering;
 using Unity.Mathematics;
+using Unity.Collections;
+using UnityEngine;
+using Unity.Transforms;
+using Collider = Unity.Physics.Collider;
 
 using UnityEngine;
 
-public class SketchBasedMonoBehaviour : MonoBehaviour
+[Serializable]
+public class SketchBasedMonoBehaviour : BasePhysicsDemo
 {
-    public GameObject template;
+    public GameObject prefab;
+    private Entity prefabEntity;
+
+    public GameObject sketchPlane;
+
+    BlobAssetReference<Collider>  sourceCollider;
 
     // Start is called before the first frame update
-    void Start()
+    void OnEnable()
     {
-        
+        if (this.enabled)
+        {
+            float3 gravity = float3.zero;
+            var settings = GameObjectConversionSettings.FromWorld(World.DefaultGameObjectInjectionWorld, new BlobAssetStore());
+            // Create entity prefab from the game object hierarchy once
+            prefabEntity = GameObjectConversionUtility.ConvertGameObjectHierarchy(prefab, settings);
+            var entityManager = BasePhysicsDemo.DefaultWorld.EntityManager;
+
+            sourceCollider = entityManager.GetComponentData<PhysicsCollider>(prefabEntity).Value;
+        }
     }
 
     // Update is called once per frame
     void Update()
     {
-        if ( Input.GetMouseButtonDown(0))
+        if ( Input.GetMouseButton(0) && sketchPlane != null )
         {
             var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+            
+            // Physics.Raycast(ray.origin, ray.direction, 100000f);
+            
+            UnityEngine.RaycastHit hitInfo;
 
-            
-            
-            Physics.Raycast(ray.origin, ray.direction, 100000f);
-            
-            RaycastHit[] hits = Physics.RaycastAll(ray);
-
-            foreach( RaycastHit hit in hits )
+            if( sketchPlane.GetComponent<UnityEngine.Collider>().Raycast(ray, out hitInfo, 10000f) )
             {
-                var go = hit.collider.gameObject;
-
-                if( go.tag == "canvas" )
-                {
-                    addBrushPoint(hit.point);
-                }
+                addBrushPoint(hitInfo.point);
             }
+            
 
+
+            // RaycastHit[] hits = Physics.RaycastAll(ray);
+
+            // foreach( RaycastHit hit in hits )
+            // {
+            //     var go = hit.collider.gameObject;
+
+            //     if( go.tag == "canvas" )
+            //     {
+            //         addBrushPoint(hit.point);
+            //     }
+            // }
         }
         
     }
 
     void addBrushPoint(Vector3 mousePosition)
     {
-        NativeArray<Entity> entityArray = new NativeArray<Entity>(1, Allocator.Temp);
+        CreateDynamicBody(new float3(mousePosition), quaternion.identity, sourceCollider, float3.zero, float3.zero, 1.0f);
+        
+        var instance = BasePhysicsDemo.DefaultWorld.EntityManager.Instantiate(prefabEntity);
 
-        // EntityArchetype entityArchetype = entityManager.CreateArchetype(
-        //     typeof(Oscillator),
-        //     typeof(Translation),
-        //     typeof(Rotation),
-        //     typeof(Scale),
-        //     typeof(RenderMesh),
-        //     typeof(RenderBounds),
-        //     typeof(WorldRenderBounds),
-        //     typeof(EditorRenderData),
-        //     typeof(LocalToWorld)
-        // );
-        // entityManager.CreateEntity(entityArchetype, entityArray);
-
-        var settings = GameObjectConversionSettings.FromWorld(World.DefaultGameObjectInjectionWorld, null);
-        var prefab = GameObjectConversionUtility.ConvertGameObjectHierarchy(template, settings);
-        var entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
-
-        entityManager.Instantiate(prefab, entityArray);
-
-        for (int i = 0; i < entityArray.Length; i++) {
-            Entity entity = entityArray[i];
-
-
-
-
-            entityManager.SetComponentData(entity, new Translation { Value =  mousePosition } );
-
-
-
-
-
-        }
+        BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Translation { Value = mousePosition });
+        BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Rotation { Value = quaternion.identity });
+        BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new PhysicsCollider { Value = sourceCollider });
     }
 }
