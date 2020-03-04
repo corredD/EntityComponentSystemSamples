@@ -15,7 +15,10 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
 
     public GameObject sketchPlane;
     public float sketchPlaneSpawningOffset = -1.0f;
-
+    public float sketchPlaneStepSize = 3.0f;
+    public int sketchPlaneSteps = 3; // i.e. the number of layers
+    public int sketchPlaneCurrentStep = 0;
+    
     public List<GameObject> prefabs;
     public float3 range;
     public int count;
@@ -23,7 +26,7 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
     BlobAssetReference<Collider>  sourceCollider;
 
 
-    private float _planeStartZ;
+    private float _sketchPlaneStartZ;
     Entity sourceEntity;
     public List<Entity> sourceEntitys;
     public List<BlobAssetReference<Collider>> sourceColliders;
@@ -55,7 +58,7 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
                 sourceColliders.Add(sourceCollider);
             }
 
-            _planeStartZ = sketchPlane.transform.position.z;
+            _sketchPlaneStartZ = sketchPlane.transform.position.z;
         }
     }
 
@@ -92,7 +95,11 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
         // sketch plane slider
         {
             Vector3 sketchPosition = sketchPlane.transform.position;
-            sketchPosition.z = GUI.VerticalSlider(_sketchPlaneSliderRect(), sketchPosition.z, 0.0f, 30.0f);       
+
+            sketchPlaneCurrentStep = (int)GUI.VerticalSlider(_sketchPlaneSliderRect(), sketchPlaneCurrentStep, 0, sketchPlaneSteps);
+
+            sketchPosition.z = _sketchPlaneStartZ + sketchPlaneCurrentStep * sketchPlaneStepSize;
+  
             sketchPlane.transform.position = sketchPosition;
         }
 
