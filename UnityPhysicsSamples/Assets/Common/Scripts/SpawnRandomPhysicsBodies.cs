@@ -19,6 +19,8 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
     public int sketchPlaneSteps = 3; // i.e. the number of layers
     public int sketchPlaneCurrentStep = 0;
     
+    const float _guiInset = 40;
+
     public List<GameObject> prefabs;
     public float3 range;
     public int count;
@@ -85,7 +87,7 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
     {
         // palette
         for (int i = 0; i < sourceEntitys.Count;i++){
-            if (GUI.Button(new Rect(10, 10+i*100, 150, 100), "Protein Type "+i.ToString()))
+            if (GUI.Button(new Rect(_guiInset, _guiInset+i*100, 150, 100), "Protein Type "+i.ToString()))
             {
                 print("You clicked the button! "+i.ToString());
                 current_type = i;
@@ -133,12 +135,13 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
     {
         int width = Screen.width;
         
-        return new Rect(width - 50 - 10, 10, 150, 500);
+        return new Rect(width - 50 - _guiInset, _guiInset, 150, 500);
     }
+
 
     Rect _paletteRect()
     {
-        return new Rect(10, 10, 150, 100*sourceEntitys.Count);
+        return new Rect(_guiInset, _guiInset, 150, 100*sourceEntitys.Count);
     }
 
     void update_pen()
@@ -151,6 +154,11 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
         if (Input.GetMouseButton(0))
         {   
             Vector2 mousePosition = Input.mousePosition;     
+
+
+            Rect debug = _sketchPlaneSliderRect();
+
+            mousePosition.y= Screen.height - mousePosition.y;
 
             if (_paletteRect().Contains(mousePosition)) return;
             if (_sketchPlaneSliderRect().Contains(mousePosition)) return;
