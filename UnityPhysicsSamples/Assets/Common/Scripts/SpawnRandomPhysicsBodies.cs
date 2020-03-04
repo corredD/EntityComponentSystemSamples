@@ -118,7 +118,7 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
 
     Rect _paletteRect()
     {
-        return new Rect(10, 10, 150, 100*sourceEntitys.Count)
+        return new Rect(10, 10, 150, 100*sourceEntitys.Count);
     }
 
     void update_pen()
