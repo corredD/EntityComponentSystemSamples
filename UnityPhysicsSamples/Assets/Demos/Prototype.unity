@@ -313,6 +313,7 @@ MonoBehaviour:
   staticMaterial: {fileID: 2100000, guid: 64716136fbbea404388c6534383d7b5e, type: 2}
   StepType: 1
   sketchPlane: {fileID: 1001982340}
+  sketchPlaneSpawningOffset: -1
   prefabs:
   - {fileID: 7624471042517311316, guid: 361269828ddc3da428e9a94a9d19d741, type: 3}
   - {fileID: 6416974916538892755, guid: b2cce081b81e75743af15ce50074a8de, type: 3}
@@ -322,6 +323,7 @@ MonoBehaviour:
   - {fileID: 8696178442853582241, guid: 4f0b58360373abd4bb7228ac4ebf0cb8, type: 3}
   - {fileID: 4563565907782110869, guid: 6a57e05aa094e3342a7e2b4534b4cb79, type: 3}
   - {fileID: 592113040620944063, guid: 7aea9307f39964444aae326ab903ee7f, type: 3}
+  - {fileID: 3224285480571607310, guid: af122b71199de4e3cadbcb42e6071550, type: 3}
   range:
     x: 0
     y: 0
