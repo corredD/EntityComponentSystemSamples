@@ -92,6 +92,7 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
 
     void OnGUI()
     {
+        // palette
         for (int i = 0; i < sourceEntitys.Count;i++){
             if (GUI.Button(new Rect(10, 10+i*100, 150, 100), "Protein Type "+i.ToString()))
             {
@@ -100,31 +101,38 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
             }
         }
 
-
-        // float scrollZ = GUI.VerticalSlider(new Rect(25, 25, 100, 30), scrollZ, 10.0f, 0.0f);
-
-        Vector3 sketchPosition = sketchPlane.transform.position;
-        sketchPosition.z = GUI.VerticalSlider(_sketchPlaneSliderRect(), sketchPosition.z, 0.0f, 30.0f);       
-        sketchPlane.transform.position = sketchPosition;
+        // sketch plane slider
+        {
+            Vector3 sketchPosition = sketchPlane.transform.position;
+            sketchPosition.z = GUI.VerticalSlider(_sketchPlaneSliderRect(), sketchPosition.z, 0.0f, 30.0f);       
+            sketchPlane.transform.position = sketchPosition;
+        }
     }
 
     Rect _sketchPlaneSliderRect()
     {
         int width = Screen.width;
+        
         return new Rect(width - 50 - 10, 10, 50, 500);
     }
 
-    // Update is called once per frame
-    void Update()
+    Rect _paletteRect()
     {
+        return new Rect(10, 10, 150, 100*sourceEntitys.Count)
+    }
 
+    void update_pen()
+    {
+        update_mouseOrTouch();
+    }
+
+    void update_mouseOrTouch()
+    {
         if (Input.GetMouseButton(0))
         {   
             Vector2 mousePosition = Input.mousePosition;     
 
-            int width = Screen.width;
-
-            if (new Rect(10, 10, 150, 100*sourceEntitys.Count).Contains(mousePosition)) return;
+            if (_paletteRect().Contains(mousePosition)) return;
             if (_sketchPlaneSliderRect().Contains(mousePosition)) return;
 
             // Vector3 p = Camera.main.ScreenToWorldPoint(new Vector3(mousePosition.x,mousePosition.y,10.0f));
@@ -147,7 +155,19 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
             {
                 addBrushPoint(hitInfo.point, current_type);
             }
-        }  
+        } 
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        if( Input.stylusTouchSupported )
+            update_pen();
+        else
+            update_mouseOrTouch();
+
+
+         
 
 
 
