@@ -108,6 +108,31 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
             sketchPosition.z = GUI.VerticalSlider(_sketchPlaneSliderRect(), sketchPosition.z, 0.0f, 30.0f);       
             sketchPlane.transform.position = sketchPosition;
         }
+
+        // entity count
+        {
+
+
+            GUI.TextArea( _entityCountTextRect(), "entityCount: " + _entityCount());
+        }
+    }
+
+    
+
+    int _entityCount()
+    {
+        return BasePhysicsDemo.DefaultWorld.EntityManager.Debug.EntityCount;
+    }
+
+    Rect _entityCountTextRect()
+    {
+        int screenWidth = Screen.width;
+        int screenHeight = Screen.height;
+
+        const int width = 200;
+        const int height = 50;
+
+        return new Rect(screenWidth - width, screenHeight - height, width, height);
     }
 
     Rect _sketchPlaneSliderRect()
