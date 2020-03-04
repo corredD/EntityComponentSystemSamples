@@ -14,6 +14,7 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
     //public Dictionary<string,GameObject> prefabs;
 
     public GameObject sketchPlane;
+    public float sketchPlaneSpawningOffset = -1.0f;
 
     public List<GameObject> prefabs;
     public float3 range;
@@ -153,6 +154,9 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
 
             if( sketchPlane.GetComponent<UnityEngine.Collider>().Raycast(ray, out hitInfo, 10000f) )
             {
+                // lift it off the surface
+                hitInfo.point += new Vector3(0f,0f,sketchPlaneSpawningOffset);
+
                 addBrushPoint(hitInfo.point, current_type);
             }
         } 
