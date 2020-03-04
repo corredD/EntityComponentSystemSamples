@@ -25,17 +25,25 @@ public class BasePhysicsDemo : MonoBehaviour
     public Material dynamicMaterial;
     public Material staticMaterial;
 
+    private bool _didInit = false;
+
     public SimulationType StepType = SimulationType.UnityPhysics;
 
-    protected void init(float3 gravity)
+    protected void init(float3 gravity, bool addCameraControl = true)
     {
+        _didInit = true;
+
         // Camera control
-        GameObject mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
-        CameraControl cameraControl = mainCamera.AddComponent<CameraControl>();
-        cameraControl.lookSpeedH = 0.6f;
-        cameraControl.lookSpeedV = 0.6f;
-        cameraControl.zoomSpeed = 1.0f;
-        cameraControl.dragSpeed = 4.0f;
+        if( addCameraControl )
+        {
+            GameObject mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
+            CameraControl cameraControl = mainCamera.AddComponent<CameraControl>();
+            cameraControl.lookSpeedH = 0.6f;
+            cameraControl.lookSpeedV = 0.6f;
+            cameraControl.zoomSpeed = 1.0f;
+            cameraControl.dragSpeed = 4.0f;
+        }
+
 
         // Create the stepper
         var entityManager = DefaultWorld.EntityManager;
@@ -63,7 +71,8 @@ public class BasePhysicsDemo : MonoBehaviour
 
     protected virtual void Start()
     {
-        init(new float3(0, -9.81f, 0));
+        if( !_didInit )
+            init(new float3(0, -9.81f, 0));
     }
 
     //
