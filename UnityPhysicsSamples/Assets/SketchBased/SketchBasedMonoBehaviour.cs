@@ -17,6 +17,9 @@ public class SketchBasedMonoBehaviour : BasePhysicsDemo
 
     public GameObject sketchPlane;
 
+
+    public float sketchMoveRate = 0.1f;
+
     BlobAssetReference<Collider>  sourceCollider;
 
     // Start is called before the first frame update
@@ -25,6 +28,9 @@ public class SketchBasedMonoBehaviour : BasePhysicsDemo
         if (this.enabled)
         {
             float3 gravity = float3.zero;
+
+            init(gravity, false);
+
             var settings = GameObjectConversionSettings.FromWorld(World.DefaultGameObjectInjectionWorld, new BlobAssetStore());
             // Create entity prefab from the game object hierarchy once
             prefabEntity = GameObjectConversionUtility.ConvertGameObjectHierarchy(prefab, settings);
@@ -64,12 +70,15 @@ public class SketchBasedMonoBehaviour : BasePhysicsDemo
             //     }
             // }
         }
-        
+
+        float deltaScrolLZ = Input.GetAxis("Mouse ScrollWheel");
+        sketchPlane.transform.position += new Vector3(0f,0f, deltaScrolLZ * sketchMoveRate);
+
     }
 
     void addBrushPoint(Vector3 mousePosition)
     {
-        CreateDynamicBody(new float3(mousePosition), quaternion.identity, sourceCollider, float3.zero, float3.zero, 1.0f);
+        // CreateDynamicBody(new float3(mousePosition), quaternion.identity, sourceCollider, float3.zero, float3.zero, 1.0f);
         
         var instance = BasePhysicsDemo.DefaultWorld.EntityManager.Instantiate(prefabEntity);
 
