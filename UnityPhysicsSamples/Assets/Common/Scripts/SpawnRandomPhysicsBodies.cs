@@ -37,7 +37,7 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
             random.InitState(seed);
             sourceEntitys = new List<Entity>();
             sourceColliders = new List<BlobAssetReference<Collider>>();
-            //prefabs = new Dictionary<string, GameObject>();
+
             float3 gravity = new float3(0, 0.0f, 0);//float3.zero;
 
             base.init(gravity, false /* don't add the control script from the base physics */);
@@ -50,25 +50,12 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
                 var sourceEntity = GameObjectConversionUtility.ConvertGameObjectHierarchy(prefab, settings);
                 var entityManager = BasePhysicsDemo.DefaultWorld.EntityManager;
                 sourceEntitys.Add(sourceEntity);
-                //var positions = new NativeArray<float3>(count, Allocator.Temp);
-                //var rotations = new NativeArray<quaternion>(count, Allocator.Temp);
-                //RandomPointsOnCircle(transform.position, range, ref positions, ref rotations);
+
                 var sourceCollider = entityManager.GetComponentData<PhysicsCollider>(sourceEntity).Value;
                 sourceColliders.Add(sourceCollider);
             }
 
             _planeStartZ = sketchPlane.transform.position.z;
-
-            //for (int i = 0; i < count; i++)
-           // {
-            //    var instance = entityManager.Instantiate(sourceEntity);
-            ///    entityManager.SetComponentData(instance, new Translation { Value = positions[i] });
-            //    entityManager.SetComponentData(instance, new Rotation { Value = rotations[i] });
-            //    entityManager.SetComponentData(instance, new PhysicsCollider { Value = sourceCollider });
-            //}
-
-            //positions.Dispose();
-            //rotations.Dispose();
         }
     }
 
@@ -139,7 +126,7 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
     {
         int width = Screen.width;
         
-        return new Rect(width - 50 - 10, 10, 50, 500);
+        return new Rect(width - 50 - 10, 10, 150, 500);
     }
 
     Rect _paletteRect()
@@ -161,19 +148,7 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
             if (_paletteRect().Contains(mousePosition)) return;
             if (_sketchPlaneSliderRect().Contains(mousePosition)) return;
 
-            // Vector3 p = Camera.main.ScreenToWorldPoint(new Vector3(mousePosition.x,mousePosition.y,10.0f));
-            // Debug.Log(p);   //new float3(0, 1, 0)
-            // ///CreateDynamicBody(new float3(p.x,p.y,p.z), quaternion.identity, sourceCollider, float3.zero, float3.zero, 1.0f);
-            // int i = current_type;//random.NextInt(0,sourceEntitys.Count);
-            // var instance = BasePhysicsDemo.DefaultWorld.EntityManager.Instantiate(sourceEntitys[i]);
-            // BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Translation { Value = new float3(p.x,p.y,p.z) });
-            // BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Rotation { Value = quaternion.identity });
-            // BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new PhysicsCollider { Value = sourceColliders[i] });
-       
-
             var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            
-            // Physics.Raycast(ray.origin, ray.direction, 100000f);
             
             UnityEngine.RaycastHit hitInfo;
 
@@ -194,23 +169,14 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
             update_pen();
         else
             update_mouseOrTouch();
-
-
-         
-
-
-
-
     }
 
     void addBrushPoint(Vector3 mousePosition, int prefabIndex)
     {
-        // CreateDynamicBody(new float3(mousePosition), quaternion.identity, sourceCollider, float3.zero, float3.zero, 1.0f);
-        
         var instance = BasePhysicsDemo.DefaultWorld.EntityManager.Instantiate(sourceEntitys[prefabIndex]);
 
         BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Translation { Value = mousePosition });
-        BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Rotation { Value = quaternion.identity });
+        BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Rotation { Value = random.NextQuaternionRotation() });
         BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new PhysicsCollider { Value = sourceColliders[prefabIndex] });
     }
 
