@@ -12,11 +12,17 @@ using Collider = Unity.Physics.Collider;
 public class SpawnRandomPhysicsBodies : BasePhysicsDemo
 {
     //public Dictionary<string,GameObject> prefabs;
+
+    public GameObject sketchPlane;
+
     public List<GameObject> prefabs;
     public float3 range;
     public int count;
     public uint seed=10;
     BlobAssetReference<Collider>  sourceCollider;
+
+
+    private float _planeStartZ;
     Entity sourceEntity;
     public List<Entity> sourceEntitys;
     public List<BlobAssetReference<Collider>> sourceColliders;
@@ -31,8 +37,10 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
             sourceEntitys = new List<Entity>();
             sourceColliders = new List<BlobAssetReference<Collider>>();
             //prefabs = new Dictionary<string, GameObject>();
-            float3 gravity = new float3(0, -10.0f, 0);//float3.zero;
-            base.init(gravity);
+            float3 gravity = new float3(0, 0.0f, 0);//float3.zero;
+
+            base.init(gravity, false /* don't add the control script from the base physics */);
+
             for (int i=0; i< prefabs.Count;i++)
             {
                 var prefab = prefabs[i];
@@ -47,6 +55,9 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
                 var sourceCollider = entityManager.GetComponentData<PhysicsCollider>(sourceEntity).Value;
                 sourceColliders.Add(sourceCollider);
             }
+
+            _planeStartZ = sketchPlane.transform.position.z;
+
             //for (int i = 0; i < count; i++)
            // {
             //    var instance = entityManager.Instantiate(sourceEntity);
@@ -88,24 +99,70 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
                 current_type = i;
             }
         }
+
+
+        // float scrollZ = GUI.VerticalSlider(new Rect(25, 25, 100, 30), scrollZ, 10.0f, 0.0f);
+
+        Vector3 sketchPosition = sketchPlane.transform.position;
+        sketchPosition.z = GUI.VerticalSlider(_sketchPlaneSliderRect(), sketchPosition.z, 0.0f, 30.0f);       
+        sketchPlane.transform.position = sketchPosition;
+    }
+
+    Rect _sketchPlaneSliderRect()
+    {
+        int width = Screen.width;
+        return new Rect(width - 50 - 10, 10, 50, 500);
     }
 
     // Update is called once per frame
     void Update()
     {
+
         if (Input.GetMouseButton(0))
         {   
             Vector2 mousePosition = Input.mousePosition;     
+
+            int width = Screen.width;
+
             if (new Rect(10, 10, 150, 100*sourceEntitys.Count).Contains(mousePosition)) return;
-            Vector3 p = Camera.main.ScreenToWorldPoint(new Vector3(mousePosition.x,mousePosition.y,10.0f));
-            Debug.Log(p);   //new float3(0, 1, 0)
-            ///CreateDynamicBody(new float3(p.x,p.y,p.z), quaternion.identity, sourceCollider, float3.zero, float3.zero, 1.0f);
-            int i = current_type;//random.NextInt(0,sourceEntitys.Count);
-            var instance = BasePhysicsDemo.DefaultWorld.EntityManager.Instantiate(sourceEntitys[i]);
-            BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Translation { Value = new float3(p.x,p.y,p.z) });
-            BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Rotation { Value = quaternion.identity });
-            BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new PhysicsCollider { Value = sourceColliders[i] });
+            if (_sketchPlaneSliderRect().Contains(mousePosition)) return;
+
+            // Vector3 p = Camera.main.ScreenToWorldPoint(new Vector3(mousePosition.x,mousePosition.y,10.0f));
+            // Debug.Log(p);   //new float3(0, 1, 0)
+            // ///CreateDynamicBody(new float3(p.x,p.y,p.z), quaternion.identity, sourceCollider, float3.zero, float3.zero, 1.0f);
+            // int i = current_type;//random.NextInt(0,sourceEntitys.Count);
+            // var instance = BasePhysicsDemo.DefaultWorld.EntityManager.Instantiate(sourceEntitys[i]);
+            // BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Translation { Value = new float3(p.x,p.y,p.z) });
+            // BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Rotation { Value = quaternion.identity });
+            // BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new PhysicsCollider { Value = sourceColliders[i] });
+       
+
+            var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
             
-        }       
+            // Physics.Raycast(ray.origin, ray.direction, 100000f);
+            
+            UnityEngine.RaycastHit hitInfo;
+
+            if( sketchPlane.GetComponent<UnityEngine.Collider>().Raycast(ray, out hitInfo, 10000f) )
+            {
+                addBrushPoint(hitInfo.point, current_type);
+            }
+        }  
+
+
+
+
     }
+
+    void addBrushPoint(Vector3 mousePosition, int prefabIndex)
+    {
+        // CreateDynamicBody(new float3(mousePosition), quaternion.identity, sourceCollider, float3.zero, float3.zero, 1.0f);
+        
+        var instance = BasePhysicsDemo.DefaultWorld.EntityManager.Instantiate(sourceEntitys[prefabIndex]);
+
+        BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Translation { Value = mousePosition });
+        BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Rotation { Value = quaternion.identity });
+        BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new PhysicsCollider { Value = sourceColliders[prefabIndex] });
+    }
+
 }
