@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Unity.Physics;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -10,27 +11,42 @@ using Collider = Unity.Physics.Collider;
 [Serializable]
 public class SpawnRandomPhysicsBodies : BasePhysicsDemo
 {
-    public GameObject prefab;
+    //public Dictionary<string,GameObject> prefabs;
+    public List<GameObject> prefabs;
     public float3 range;
     public int count;
+    public uint seed=10;
     BlobAssetReference<Collider>  sourceCollider;
     Entity sourceEntity;
+    public List<Entity> sourceEntitys;
+    public List<BlobAssetReference<Collider>> sourceColliders;
+    Unity.Mathematics.Random random;
+    public int current_type;
     void OnEnable()
     {
         if (this.enabled)
         {
-            float3 gravity = float3.zero;
+            random = new Unity.Mathematics.Random();
+            random.InitState(seed);
+            sourceEntitys = new List<Entity>();
+            sourceColliders = new List<BlobAssetReference<Collider>>();
+            //prefabs = new Dictionary<string, GameObject>();
+            float3 gravity = new float3(0, -10.0f, 0);//float3.zero;
             base.init(gravity);
-            var settings = GameObjectConversionSettings.FromWorld(World.DefaultGameObjectInjectionWorld, new BlobAssetStore());
-            // Create entity prefab from the game object hierarchy once
-            sourceEntity = GameObjectConversionUtility.ConvertGameObjectHierarchy(prefab, settings);
-            var entityManager = BasePhysicsDemo.DefaultWorld.EntityManager;
-
-            //var positions = new NativeArray<float3>(count, Allocator.Temp);
-            //var rotations = new NativeArray<quaternion>(count, Allocator.Temp);
-            //RandomPointsOnCircle(transform.position, range, ref positions, ref rotations);
-
-            sourceCollider = entityManager.GetComponentData<PhysicsCollider>(sourceEntity).Value;
+            for (int i=0; i< prefabs.Count;i++)
+            {
+                var prefab = prefabs[i];
+                var settings = GameObjectConversionSettings.FromWorld(World.DefaultGameObjectInjectionWorld, new BlobAssetStore());
+                // Create entity prefab from the game object hierarchy once
+                var sourceEntity = GameObjectConversionUtility.ConvertGameObjectHierarchy(prefab, settings);
+                var entityManager = BasePhysicsDemo.DefaultWorld.EntityManager;
+                sourceEntitys.Add(sourceEntity);
+                //var positions = new NativeArray<float3>(count, Allocator.Temp);
+                //var rotations = new NativeArray<quaternion>(count, Allocator.Temp);
+                //RandomPointsOnCircle(transform.position, range, ref positions, ref rotations);
+                var sourceCollider = entityManager.GetComponentData<PhysicsCollider>(sourceEntity).Value;
+                sourceColliders.Add(sourceCollider);
+            }
             //for (int i = 0; i < count; i++)
            // {
             //    var instance = entityManager.Instantiate(sourceEntity);
@@ -44,12 +60,12 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
         }
     }
 
-    public static void RandomPointsOnCircle(float3 center, float3 range, ref NativeArray<float3> positions, ref NativeArray<quaternion> rotations)
+    public void RandomPointsOnCircle(float3 center, float3 range, ref NativeArray<float3> positions, ref NativeArray<quaternion> rotations)
     {
         var count = positions.Length;
         // Initialize the seed of the random number generator
-        Unity.Mathematics.Random random = new Unity.Mathematics.Random();
-        random.InitState(10);
+        
+        
         for (int i = 0; i < count; i++)
         {
             positions[i] = center + random.NextFloat3(-range, range);
@@ -57,9 +73,21 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
         }
     }
     // Start is called before the first frame update
+    
     void Start()
     {
         
+    }
+
+    void OnGUI()
+    {
+        for (int i = 0; i < sourceEntitys.Count;i++){
+            if (GUI.Button(new Rect(10, 10+i*100, 150, 100), "Protein Type "+i.ToString()))
+            {
+                print("You clicked the button! "+i.ToString());
+                current_type = i;
+            }
+        }
     }
 
     // Update is called once per frame
@@ -68,14 +96,15 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
         if (Input.GetMouseButton(0))
         {   
             Vector2 mousePosition = Input.mousePosition;     
+            if (new Rect(10, 10, 150, 100*sourceEntitys.Count).Contains(mousePosition)) return;
             Vector3 p = Camera.main.ScreenToWorldPoint(new Vector3(mousePosition.x,mousePosition.y,10.0f));
             Debug.Log(p);   //new float3(0, 1, 0)
-            CreateDynamicBody(new float3(p.x,p.y,p.z), quaternion.identity, sourceCollider, float3.zero, float3.zero, 1.0f);
-            
-            var instance = BasePhysicsDemo.DefaultWorld.EntityManager.Instantiate(sourceEntity);
+            ///CreateDynamicBody(new float3(p.x,p.y,p.z), quaternion.identity, sourceCollider, float3.zero, float3.zero, 1.0f);
+            int i = current_type;//random.NextInt(0,sourceEntitys.Count);
+            var instance = BasePhysicsDemo.DefaultWorld.EntityManager.Instantiate(sourceEntitys[i]);
             BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Translation { Value = new float3(p.x,p.y,p.z) });
             BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new Rotation { Value = quaternion.identity });
-            BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new PhysicsCollider { Value = sourceCollider });
+            BasePhysicsDemo.DefaultWorld.EntityManager.SetComponentData(instance, new PhysicsCollider { Value = sourceColliders[i] });
             
         }       
     }
