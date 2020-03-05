@@ -19,7 +19,7 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
     public int sketchPlaneSteps = 3; // i.e. the number of layers
     public int sketchPlaneCurrentStep = 0;
     
-    const float _guiInset = 40;
+    const float _guiInset = 100;
 
     public List<GameObject> prefabs;
     public float3 range;
@@ -135,13 +135,13 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
     {
         int width = Screen.width;
         
-        return new Rect(width - 50 - _guiInset, _guiInset, 150, 500);
+        return new Rect(width - 50 - _guiInset, 300, 150, 500);
     }
 
 
     Rect _paletteRect()
     {
-        return new Rect(_guiInset, _guiInset, 150, 100*sourceEntitys.Count);
+        return new Rect(_guiInset, _guiInset, 300, 100*sourceEntitys.Count);
     }
 
     void update_pen()
