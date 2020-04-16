@@ -7,6 +7,7 @@ using Unity.Collections;
 using UnityEngine;
 using Unity.Transforms;
 using Collider = Unity.Physics.Collider;
+using Unity.Physics.Authoring;
 
 [Serializable]
 public class SpawnRandomPhysicsBodies : BasePhysicsDemo
@@ -32,6 +33,7 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
     Entity sourceEntity;
     public List<Entity> sourceEntitys;
     public List<BlobAssetReference<Collider>> sourceColliders;
+    public List<BlobAssetReference<JointData>> sourceJoints;
     Unity.Mathematics.Random random;
     public int current_type;
     void OnEnable()
@@ -42,6 +44,7 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
             random.InitState(seed);
             sourceEntitys = new List<Entity>();
             sourceColliders = new List<BlobAssetReference<Collider>>();
+            sourceJoints = new List<BlobAssetReference<JointData>>();
 
             float3 gravity = new float3(0, 0.0f, 0);//float3.zero;
 
@@ -58,6 +61,8 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
 
                 var sourceCollider = entityManager.GetComponentData<PhysicsCollider>(sourceEntity).Value;
                 sourceColliders.Add(sourceCollider);
+                //var sourceJoint = entityManager.GetComponentData<PhysicsJoint>(sourceEntity).Value;
+                //sourceJoints.Add(sourceJoint);
             }
 
             _sketchPlaneStartZ = sketchPlane.transform.position.z;
@@ -151,10 +156,9 @@ public class SpawnRandomPhysicsBodies : BasePhysicsDemo
 
     void update_mouseOrTouch()
     {
-        if (Input.GetMouseButton(0))
+        if (Input.GetMouseButton(0)&&Input.GetKey(KeyCode.LeftControl))
         {   
             Vector2 mousePosition = Input.mousePosition;     
-
 
             Rect debug = _sketchPlaneSliderRect();
 

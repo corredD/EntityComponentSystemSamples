@@ -15,6 +15,9 @@ GameObject:
   - component: {fileID: 838218377287071091}
   - component: {fileID: 2025747591132491963}
   - component: {fileID: 6186415458338114243}
+  - component: {fileID: 2871963503597006744}
+  - component: {fileID: -8945849256146753956}
+  - component: {fileID: 6960278464489883340}
   m_Layer: 0
   m_Name: OrbitingSphere
   m_TagString: Untagged
@@ -58,6 +61,7 @@ MeshRenderer:
   m_MotionVectors: 1
   m_LightProbeUsage: 0
   m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -69,6 +73,7 @@ MeshRenderer:
   m_ProbeAnchor: {fileID: 0}
   m_LightProbeVolumeOverride: {fileID: 0}
   m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
   m_PreserveUVs: 0
   m_IgnoreNormalsForChartDetection: 0
   m_ImportantGI: 0
@@ -116,9 +121,15 @@ MonoBehaviour:
     Height: 2.0000005
     Radius: 1.0000002
     Axis: 2
+  m_CylinderSideCount: 20
   m_SphereRadius: 1.0000002
-  m_ConvexRadius: 0.05
+  m_MinimumSkinnedVertexWeight: 0.1
+  m_ConvexHullGenerationParameters:
+    m_SimplificationTolerance: 0.015
+    m_BevelRadius: 0.05
+    m_MinimumAngle: 2.5000002
   m_CustomMesh: {fileID: 0}
+  m_ForceUnique: 0
   m_Material:
     m_SupportsTemplate: 1
     m_Template: {fileID: 0}
@@ -144,9 +155,10 @@ MonoBehaviour:
     m_RaisesCollisionEvents:
       m_Override: 0
       m_Value: 0
-    m_CustomFlags:
+    m_CustomTags:
       m_Override: 0
       m_Value: 0000000000000000
+  m_ConvexRadius_Deprecated: -1
 --- !u!114 &838218377287071091
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -187,6 +199,15 @@ MonoBehaviour:
     x: 0.4
     y: 0.4
     z: 0.4
+  m_CustomTags:
+    Tag00: 0
+    Tag01: 0
+    Tag02: 0
+    Tag03: 0
+    Tag04: 0
+    Tag05: 0
+    Tag06: 0
+    Tag07: 0
 --- !u!114 &2025747591132491963
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -212,7 +233,55 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9874b20242f5c714bba12fd9805378fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GravitationalMass: 1000
+  GravitationalMass: 14.52
   GravitationalConstant: 10
   EventHorizonDistance: 53.5
   RotationMultiplier: 0.7
+--- !u!114 &2871963503597006744
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1396429284714304}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 655e2484af6aa7c40a2686d702bb733d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Range:
+    x: 30
+    y: 30
+    z: 30
+--- !u!114 &-8945849256146753956
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1396429284714304}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 45eda3c0278576746a0513b6236bf226, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  componentEnabled: 1
+  strength: 10
+  deadzone: 0.5
+  axis: 0
+  rotation: 0
+  proportional: 1
+  massInvariant: 0
+--- !u!114 &6960278464489883340
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1396429284714304}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 140a4ee5d3253224a9e854c61748f606, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  IgnoreTriggers: 1
