@@ -1,4 +1,4 @@
-﻿using Unity.Physics;
+using Unity.Physics;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
@@ -22,14 +22,6 @@ public class BoxCapsuleDemo : BasePhysicsDemo
     protected override void Start()
     {
         base.Start();
-        //base.init(float3.zero); // no gravity
-
-        // Enable the joint viewer
-        SetDebugDisplay(new Unity.Physics.Authoring.PhysicsDebugDisplayData
-        {
-            DrawJoints = 1,
-            DrawContacts = 1
-        });
 
         const uint layerBody = (1 << 0);
         const uint layerHead = (1 << 1);
@@ -50,7 +42,7 @@ public class BoxCapsuleDemo : BasePhysicsDemo
                 Size = new float3(20.0f, 0.2f, 20.0f),
                 BevelRadius = 0.01f
             },
-            filter(layerGround, 0), Material.Default);
+                filter(layerGround, 0), Material.Default);
             CreateStaticBody(new float3(0, -0.1f, 0), quaternion.identity, collider);
         }
 
@@ -66,7 +58,7 @@ public class BoxCapsuleDemo : BasePhysicsDemo
                 Size = 2.0f * bodyHalfExtents,
                 BevelRadius = 0.01f
             },
-            filter(layerBody, layerHead | layerUpperArm | layerThigh), Material.Default);
+                filter(layerBody, layerHead | layerUpperArm | layerThigh), Material.Default);
             quaternion q = quaternion.AxisAngle(new float3(1, 0, 0), (float)math.PI / 2.0f);
             body = CreateDynamicBody(bodyPosition, quaternion.identity, collider, float3.zero, float3.zero, 10.0f);
             //body = createStaticBody(bodyPosition, quaternion.identity, collider);
@@ -77,11 +69,11 @@ public class BoxCapsuleDemo : BasePhysicsDemo
             float handLength = 0.025f;
             float handRadius = 0.055f;
             BlobAssetReference<Collider> handCollider = CapsuleCollider.Create(new CapsuleGeometry
-                {
-                    Vertex0 = new float3(-handLength / 2, 0, 0),
-                    Vertex1 = new float3(handLength / 2, 0, 0),
-                    Radius = handRadius
-                },
+            {
+                Vertex0 = new float3(-handLength / 2, 0, 0),
+                Vertex1 = new float3(handLength / 2, 0, 0),
+                Radius = handRadius
+            },
                 filter(layerHand, layerForearm), Material.Default);
 
             for (int i = 0; i < 1; i++)

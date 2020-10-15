@@ -1,4 +1,4 @@
-﻿using Unity.Collections;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Physics.Systems;
@@ -10,7 +10,6 @@ namespace Unity.Physics.Tests
 {
     public struct VerifyGravityFactorData : IComponentData
     {
-
     }
 
     public class VerifyGravityFactor : MonoBehaviour, IConvertGameObjectToEntity
@@ -21,8 +20,9 @@ namespace Unity.Physics.Tests
         }
     }
 
+    [UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
     [UpdateBefore(typeof(StepPhysicsWorld))]
-    public class VerifyGravityFactorSystem : JobComponentSystem
+    public class VerifyGravityFactorSystem : SystemBase
     {
         EntityQuery m_VerificationGroup;
 
@@ -34,21 +34,20 @@ namespace Unity.Physics.Tests
             });
         }
 
-        protected override JobHandle OnUpdate(JobHandle inputDeps)
+        protected override void OnUpdate()
         {
-            var entities = m_VerificationGroup.ToEntityArray(Allocator.TempJob);
-            foreach (var entity in entities)
+            using (var entities = m_VerificationGroup.ToEntityArray(Allocator.TempJob))
             {
-                var translation = EntityManager.GetComponentData<Translation>(entity);
+                foreach (var entity in entities)
+                {
+                    var translation = EntityManager.GetComponentData<Translation>(entity);
 
-                // Sphere should never move due to gravity factor being 0
-                Assert.AreEqual(translation.Value.x, 0.0f);
-                Assert.AreEqual(translation.Value.y, 1.0f);
-                Assert.AreEqual(translation.Value.z, 0.0f);
+                    // Sphere should never move due to gravity factor being 0
+                    Assert.AreEqual(translation.Value.x, 0.0f);
+                    Assert.AreEqual(translation.Value.y, 1.0f);
+                    Assert.AreEqual(translation.Value.z, 0.0f);
+                }
             }
-            entities.Dispose();
-
-            return inputDeps;
         }
     }
 }

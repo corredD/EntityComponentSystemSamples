@@ -1,4 +1,4 @@
-﻿using Unity.Collections;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
@@ -11,9 +11,7 @@ public class CompoundDemo : BasePhysicsDemo
     
     protected unsafe override void Start()
     {
-        //float3 gravity = new float3(0, -9.81f, 0);
-        float3 gravity = float3.zero;
-        base.init(gravity);
+        base.init();
 
         //         // Floor
         //         {

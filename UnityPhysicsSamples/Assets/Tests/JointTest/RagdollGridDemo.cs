@@ -1,4 +1,4 @@
-﻿using Unity.Entities;
+using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
 using UnityEngine;
@@ -9,12 +9,6 @@ public class RagdollGridDemo : BasePhysicsDemo
     protected override void Start()
     {
         base.Start();
-
-        // Enable the joint viewer
-        SetDebugDisplay(new Unity.Physics.Authoring.PhysicsDebugDisplayData
-        {
-            DrawJoints = 1
-        });
 
         BlobAssetReference<Unity.Physics.Collider> collider = Unity.Physics.BoxCollider.Create(new BoxGeometry
         {
@@ -45,10 +39,9 @@ public class RagdollGridDemo : BasePhysicsDemo
             var perpendicularAngle = new FloatRange(-math.PI / 2f, math.PI / 2f);
             var twistAngle = new FloatRange(-math.PI / 8f, math.PI / 8f);
 
-            BlobAssetReference<JointData> ragdoll0, ragdoll1;
-            var localFrame = new JointFrame { Axis = axisLocal, PerpendicularAxis = perpendicularLocal, Position = pivotLocal };
-            var worldFrame = new JointFrame { Axis = axisWorld, PerpendicularAxis = perpendicularWorld, Position = pivotInWorld };
-            JointData.CreateRagdoll(localFrame, worldFrame, maxConeAngle, perpendicularAngle, twistAngle, out ragdoll0, out ragdoll1);
+            var localFrame = new BodyFrame { Axis = axisLocal, PerpendicularAxis = perpendicularLocal, Position = pivotLocal };
+            var worldFrame = new BodyFrame { Axis = axisWorld, PerpendicularAxis = perpendicularWorld, Position = pivotInWorld };
+            PhysicsJoint.CreateRagdoll(localFrame, worldFrame, maxConeAngle, perpendicularAngle, twistAngle, out var ragdoll0, out var ragdoll1);
             CreateJoint(ragdoll0, body, Entity.Null);
             CreateJoint(ragdoll1, body, Entity.Null);
         }

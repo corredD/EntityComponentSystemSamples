@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using System.Reflection;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -8,65 +9,139 @@ using Unity.Physics;
 using UnityEngine;
 using UnityEngine.Assertions;
 using static RagdollDemoUtilities;
+using Collider = Unity.Physics.Collider;
 
 public class SingleThreadedRagdoll : MonoBehaviour
 {
     public PhysicsWorld PhysicsWorld;
 
-    private SimulationContext SimulationContext = new SimulationContext();
+    private SimulationContext SimulationContext;
+#if HAVOK_PHYSICS_EXISTS
+    private Havok.Physics.SimulationContext HavokSimulationContext;
+    protected bool SimulateHavok = false; // set based on the PhysicsStep component.
+#endif
+
+    public bool DrawDebugInformation = false;
+
+    static readonly System.Type k_DrawComponent = typeof(Unity.Physics.Authoring.DisplayBodyColliders)
+        .GetNestedType("DrawComponent", BindingFlags.NonPublic);
+    static readonly MethodInfo k_DrawComponent_DrawColliderEdges = k_DrawComponent
+        .GetMethod("DrawColliderEdges", BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(BlobAssetReference<Collider>), typeof(RigidTransform), typeof(bool) }, null);
+
+    public void OnDrawGizmos()
+    {
+        if (!DrawDebugInformation || !m_BodyInfos.IsCreated || !m_JointInfos.IsCreated) return;
+
+        // Debug draw the colliders
+        for (int i = 0; i < m_BodyInfos.Length; i++)
+        {
+            m_BodyInfoIndexToGameObjectMapping.TryGetValue(i, out GameObject g);
+
+            var collider = m_BodyInfos[i].Collider;
+            var transform = new RigidTransform(m_BodyInfos[i].Orientation, m_BodyInfos[i].Position);
+
+            k_DrawComponent_DrawColliderEdges.Invoke(null, new object[] { collider, transform, false });
+        }
+
+        // Debug draw the joints
+        {
+            Color originalColor = Gizmos.color;
+
+            for (int i = 0; i < m_JointInfos.Length; i++)
+            {
+                var jointInfo = m_JointInfos[i];
+                var transformBodyA = new RigidTransform(m_BodyInfos[jointInfo.BodyIndexA].Orientation, m_BodyInfos[jointInfo.BodyIndexA].Position);
+                var transformBodyB = new RigidTransform(m_BodyInfos[jointInfo.BodyIndexB].Orientation, m_BodyInfos[jointInfo.BodyIndexB].Position);
+
+                transformBodyA = math.mul(transformBodyA, jointInfo.JointData.BodyAFromJoint.AsRigidTransform());
+                transformBodyB = math.mul(transformBodyB, jointInfo.JointData.BodyBFromJoint.AsRigidTransform());
+
+                Vector3 pivotAWorld = math.transform(transformBodyA, float3.zero);
+                Vector3 pivotBWorld = math.transform(transformBodyB, float3.zero);
+
+                var colorA = Color.cyan;
+                var colorB = Color.magenta;
+                var size = 0.25f;
+                for (int j = 0; j < 3; j++)
+                {
+                    var from = Vector3.zero; from[j] = -size;
+                    var to = -from;
+                    Gizmos.color = colorA;
+                    Gizmos.DrawLine(from + pivotAWorld, to + pivotAWorld);
+                    Gizmos.color = colorB;
+                    Gizmos.DrawLine(from + pivotBWorld, to + pivotBWorld);
+                }
+            }
+            Gizmos.color = originalColor;
+        }
+    }
 
     public void Update()
     {
-        // +1 for the default static body
-        PhysicsWorld.Reset(m_NumStaticBodies + 1, m_NumDynamicBodies, m_NumJoints);
+        // +1 default static body
+        var NumStaticBodies = (m_BodyInfos.Length - m_NumDynamicBodies) + 1;
+
+        PhysicsWorld.Reset(NumStaticBodies, m_NumDynamicBodies, m_JointInfos.Length);
 
         SimulationStepInput input = new SimulationStepInput
         {
             World = PhysicsWorld,
-            TimeStep = Time.fixedDeltaTime,
+            TimeStep = BasePhysicsDemo.DefaultWorld.GetExistingSystem<FixedStepSimulationSystemGroup>().Timestep,
             NumSolverIterations = PhysicsStep.Default.SolverIterationCount,
+            SolverStabilizationHeuristicSettings = PhysicsStep.Default.SolverStabilizationHeuristicSettings,
             Gravity = PhysicsStep.Default.Gravity
         };
 
-        int numOfBodies = m_NumDynamicBodies + m_NumStaticBodies;
+        int numOfBodies = m_NumDynamicBodies + NumStaticBodies;
 
-        NativeHashMap<int, int> indexMap = new NativeHashMap<int, int>(m_Bodies.Length, Allocator.TempJob);
-
-        SimulationContext.Reset(ref PhysicsWorld);
-
-        new SingleThreadedPhysicsSimulationJob
+        using (var indexMap = new NativeHashMap<int, int>(m_BodyInfos.Length, Allocator.TempJob))
         {
-            Bodies = m_Bodies,
-            Joints = m_Joints,
-            Input = input,
-            SimulationContext = SimulationContext,
-            IndexMap = indexMap
-        }.Schedule().Complete();
-
-        // Map the results to GameObjects
-        for (int i = 0; i < numOfBodies; i++)
-        {
-            if (!m_Bodies[i].IsDynamic)
+#if HAVOK_PHYSICS_EXISTS
+            if (SimulateHavok)
             {
-                continue;
-            }
+                HavokSimulationContext.Reset(ref PhysicsWorld);
 
-            m_BodyIndexToGameObjectMapping.TryGetValue(i, out GameObject g);
-            var t = g.GetComponent<Transform>();
-            t.position = m_Bodies[i].Position;
-            t.rotation = m_Bodies[i].Orientation;
+                new SingleThreadedPhysicsHavokSimulationJob
+                {
+                    Bodies = m_BodyInfos,
+                    Joints = m_JointInfos,
+                    Input = input,
+                    SimulationContext = HavokSimulationContext,
+                    BodyInfoToBodiesIndexMap = indexMap
+                }.Run();
+            }
+            else
+#endif
+            {
+                SimulationContext.Reset(input);
+
+                new SingleThreadedPhysicsSimulationJob
+                {
+                    BodyInfos = m_BodyInfos,
+                    JointInfos = m_JointInfos,
+                    Input = input,
+                    SimulationContext = SimulationContext,
+                    BodyInfoToBodiesIndexMap = indexMap
+                }.Run();
+            }
         }
 
-        indexMap.Dispose();
+        // Map the results to GameObjects
+        for (int i = 0; i < m_BodyInfos.Length; i++)
+        {
+            if (!m_BodyInfos[i].IsDynamic) continue;
+
+            m_BodyInfoIndexToGameObjectMapping.TryGetValue(i, out GameObject g);
+            g.transform.position = m_BodyInfos[i].Position;
+            g.transform.rotation = m_BodyInfos[i].Orientation;
+        }
     }
 
-    private int m_NumStaticBodies = 0;
     private int m_NumDynamicBodies = 0;
-    private int m_NumJoints = 0;
 
-    private NativeList<BodyInfo> m_Bodies;
-    private NativeList<JointInfo> m_Joints;
-    private Dictionary<int, GameObject> m_BodyIndexToGameObjectMapping;
+    private NativeList<BodyInfo> m_BodyInfos;
+    private NativeList<JointInfo> m_JointInfos;
+    private Dictionary<int, GameObject> m_BodyInfoIndexToGameObjectMapping;
 
     [BurstCompile]
     private struct SingleThreadedPhysicsSimulationJob : IJob
@@ -74,138 +149,137 @@ public class SingleThreadedRagdoll : MonoBehaviour
         public SimulationStepInput Input;
         public SimulationContext SimulationContext;
 
-        public NativeList<BodyInfo> Bodies;
-        public NativeList<JointInfo> Joints;
+        public NativeList<BodyInfo> BodyInfos;
+        public NativeList<JointInfo> JointInfos;
 
-        public NativeHashMap<int, int> IndexMap;
+        public NativeHashMap<int, int> BodyInfoToBodiesIndexMap;
 
-        private void CreateRigidBodiesAndMotions()
+        internal static void CreateBodies(SimulationStepInput input,
+            NativeList<BodyInfo> bodyInfos, NativeHashMap<int, int> bodyInfoToBodiesIndexMap)
         {
-            NativeSlice<RigidBody> dynamicBodies = Input.World.DynamicBodies;
-            NativeSlice<RigidBody> staticBodies = Input.World.StaticBodies;
-            NativeSlice<MotionData> motionDatas = Input.World.MotionDatas;
-            NativeSlice<MotionVelocity> motionVelocities = Input.World.MotionVelocities;
+            NativeArray<RigidBody> dynamicBodies = input.World.DynamicBodies;
+            NativeArray<RigidBody> staticBodies = input.World.StaticBodies;
+            NativeArray<MotionData> motionDatas = input.World.MotionDatas;
+            NativeArray<MotionVelocity> motionVelocities = input.World.MotionVelocities;
 
             int dynamicBodyIndex = 0;
             int staticBodyIndex = 0;
 
-            for (int i = 0; i < Bodies.Length; i++)
+            for (int i = 0; i < bodyInfos.Length; i++)
             {
-                BodyInfo bodyInfo = Bodies[i];
-
-                unsafe
+                BodyInfo bodyInfo = bodyInfos[i];
+                var collider = bodyInfo.Collider;
+                if (bodyInfo.IsDynamic)
                 {
-                    Unity.Physics.Collider* collider = (Unity.Physics.Collider*)bodyInfo.Collider.GetUnsafePtr();
-
-                    if (bodyInfo.IsDynamic)
+                    dynamicBodies[dynamicBodyIndex] = new RigidBody
                     {
-                        dynamicBodies[dynamicBodyIndex] = new RigidBody
-                        {
-                            WorldFromBody = new RigidTransform(bodyInfo.Orientation, bodyInfo.Position),
-                            Collider = bodyInfo.Collider,
-                            Entity = Entity.Null,
-                            CustomTags = 0
-                        };
-                        motionDatas[dynamicBodyIndex] = new MotionData
-                        {
-                            WorldFromMotion = new RigidTransform(
-                                math.mul(bodyInfo.Orientation, collider->MassProperties.MassDistribution.Transform.rot),
-                                math.rotate(bodyInfo.Orientation, collider->MassProperties.MassDistribution.Transform.pos) + bodyInfo.Position
+                        WorldFromBody = new RigidTransform(bodyInfo.Orientation, bodyInfo.Position),
+                        Collider = bodyInfo.Collider,
+                        Entity = Entity.Null,
+                        CustomTags = 0
+                    };
+                    motionDatas[dynamicBodyIndex] = new MotionData
+                    {
+                        WorldFromMotion = new RigidTransform(
+                            math.mul(bodyInfo.Orientation, collider.Value.MassProperties.MassDistribution.Transform.rot),
+                            math.rotate(bodyInfo.Orientation, collider.Value.MassProperties.MassDistribution.Transform.pos) + bodyInfo.Position
                             ),
-                            BodyFromMotion = new RigidTransform(collider->MassProperties.MassDistribution.Transform.rot, collider->MassProperties.MassDistribution.Transform.pos),
-                            LinearDamping = 0.0f,
-                            AngularDamping = 0.0f,
-                            GravityFactor = 1.0f
-                        };
-                        motionVelocities[dynamicBodyIndex] = new MotionVelocity
-                        {
-                            LinearVelocity = bodyInfo.LinearVelocity,
-                            AngularVelocity = bodyInfo.AngularVelocity,
-                            InverseInertia = math.rcp(collider->MassProperties.MassDistribution.InertiaTensor * bodyInfo.Mass),
-                            InverseMass = math.rcp(bodyInfo.Mass),
-                            AngularExpansionFactor = collider->MassProperties.AngularExpansionFactor
-                        };
-
-                        IndexMap.Add(i, dynamicBodyIndex);
-                        dynamicBodyIndex++;
-                    }
-                    else
+                        BodyFromMotion = new RigidTransform(collider.Value.MassProperties.MassDistribution.Transform.rot, collider.Value.MassProperties.MassDistribution.Transform.pos),
+                        LinearDamping = 0.0f,
+                        AngularDamping = 0.0f
+                    };
+                    motionVelocities[dynamicBodyIndex] = new MotionVelocity
                     {
-                        staticBodies[staticBodyIndex] = new RigidBody
-                        {
-                            WorldFromBody = new RigidTransform(bodyInfo.Orientation, bodyInfo.Position),
-                            Collider = bodyInfo.Collider,
-                            Entity = Entity.Null,
-                            CustomTags = 0
-                        };
-
-                        staticBodyIndex++;
-                    }
+                        LinearVelocity = bodyInfo.LinearVelocity,
+                        AngularVelocity = bodyInfo.AngularVelocity,
+                        InverseInertia = math.rcp(collider.Value.MassProperties.MassDistribution.InertiaTensor * bodyInfo.Mass),
+                        InverseMass = math.rcp(bodyInfo.Mass),
+                        AngularExpansionFactor = collider.Value.MassProperties.AngularExpansionFactor,
+                        GravityFactor = 1.0f
+                    };
+                    bodyInfoToBodiesIndexMap.Add(i, dynamicBodyIndex);
+                    dynamicBodyIndex++;
+                }
+                else
+                {
+                    staticBodies[staticBodyIndex] = new RigidBody
+                    {
+                        WorldFromBody = new RigidTransform(bodyInfo.Orientation, bodyInfo.Position),
+                        Collider = bodyInfo.Collider,
+                        Entity = Entity.Null,
+                        CustomTags = 0
+                    };
+                    staticBodyIndex++;
+                    bodyInfoToBodiesIndexMap.Add(i, -staticBodyIndex);
+                }
+            }
+            for (int i = 0; i < bodyInfos.Length; i++)
+            {
+                if (0 > bodyInfoToBodiesIndexMap[i])
+                {
+                    bodyInfoToBodiesIndexMap[i]++;
+                    bodyInfoToBodiesIndexMap[i] = -bodyInfoToBodiesIndexMap[i];
+                    bodyInfoToBodiesIndexMap[i] += dynamicBodyIndex;
                 }
             }
 
             // Create default static body
-            unsafe
+            staticBodies[staticBodyIndex] = new RigidBody
             {
-                staticBodies[staticBodyIndex] = new RigidBody
-                {
-                    WorldFromBody = new RigidTransform(quaternion.identity, float3.zero),
-                    Collider = default,
-                    Entity = Entity.Null,
-                    CustomTags = 0
-                };
-            }
+                WorldFromBody = new RigidTransform(quaternion.identity, float3.zero),
+                Collider = default,
+                Entity = Entity.Null,
+                CustomTags = 0
+            };
         }
 
-        private void CreateJoints()
+        internal static void CreateJoints(SimulationStepInput input,
+            NativeList<JointInfo> jointInfos, NativeHashMap<int, int> bodyInfoToBodiesIndexMap)
         {
-            NativeSlice<Unity.Physics.Joint> joints = Input.World.Joints;
+            NativeArray<Unity.Physics.Joint> joints = input.World.Joints;
 
-            for (int i = 0; i < Joints.Length; i++)
+            for (int i = 0; i < jointInfos.Length; i++)
             {
-                var jointInfo = Joints[i];
+                var jointInfo = jointInfos[i];
 
-                IndexMap.TryGetValue(jointInfo.BodyAIndex, out int bodyAIndex);
-                IndexMap.TryGetValue(jointInfo.BodyBIndex, out int bodyBIndex);
-
+                bodyInfoToBodiesIndexMap.TryGetValue(jointInfo.BodyIndexA, out int bodyIndexA);
+                bodyInfoToBodiesIndexMap.TryGetValue(jointInfo.BodyIndexB, out int bodyIndexB);
                 BodyIndexPair pair = new BodyIndexPair
                 {
-                    BodyAIndex = bodyAIndex,
-                    BodyBIndex = bodyBIndex
+                    BodyIndexA = bodyIndexA,
+                    BodyIndexB = bodyIndexB,
                 };
-
-                int enabledCollisions = jointInfo.EnabledCollisions ? 1 : 0;
 
                 joints[i] = new Unity.Physics.Joint
                 {
-                    JointData = jointInfo.JointData,
                     BodyPair = pair,
                     Entity = Entity.Null,
-                    EnableCollision = enabledCollisions
+                    AFromJoint = new Math.MTransform(jointInfo.JointData.BodyAFromJoint.AsRigidTransform()),
+                    BFromJoint = new Math.MTransform(jointInfo.JointData.BodyBFromJoint.AsRigidTransform()),
+                    EnableCollision = (byte)(jointInfo.EnableCollision ? 1 : 0),
+                    Version = jointInfo.JointData.Version,
+                    Constraints = jointInfo.JointData.GetConstraints()
                 };
             }
         }
 
-        private void ExportData()
+        internal static void ExportData(SimulationStepInput input, NativeList<BodyInfo> bodyInfos)
         {
             int dynamicBodyIndex = 0;
-            for (int i = 0; i < Bodies.Length; i++)
+            for (int i = 0; i < bodyInfos.Length; i++)
             {
-                BodyInfo bodyInfo = Bodies[i];
-                if (!bodyInfo.IsDynamic)
-                {
-                    continue;
-                }
+                if (!bodyInfos[i].IsDynamic) continue;
 
-                MotionData md = Input.World.MotionDatas[dynamicBodyIndex];
+                MotionData md = input.World.MotionDatas[dynamicBodyIndex];
                 RigidTransform worldFromBody = math.mul(md.WorldFromMotion, math.inverse(md.BodyFromMotion));
 
+                BodyInfo bodyInfo = bodyInfos[i];
                 bodyInfo.Position = worldFromBody.pos;
                 bodyInfo.Orientation = worldFromBody.rot;
-                bodyInfo.LinearVelocity = Input.World.MotionVelocities[dynamicBodyIndex].LinearVelocity;
-                bodyInfo.AngularVelocity = Input.World.MotionVelocities[dynamicBodyIndex].AngularVelocity;
+                bodyInfo.LinearVelocity = input.World.MotionVelocities[dynamicBodyIndex].LinearVelocity;
+                bodyInfo.AngularVelocity = input.World.MotionVelocities[dynamicBodyIndex].AngularVelocity;
+                bodyInfos[i] = bodyInfo;
 
-                Bodies[i] = bodyInfo;
                 dynamicBodyIndex++;
             }
         }
@@ -213,8 +287,8 @@ public class SingleThreadedRagdoll : MonoBehaviour
         public void Execute()
         {
             // Create the physics world
-            CreateRigidBodiesAndMotions();
-            CreateJoints();
+            CreateBodies(Input, BodyInfos, BodyInfoToBodiesIndexMap);
+            CreateJoints(Input, JointInfos, BodyInfoToBodiesIndexMap);
 
             // Build the broadphase
             Input.World.CollisionWorld.BuildBroadphase(ref Input.World, Input.TimeStep, Input.Gravity);
@@ -223,176 +297,135 @@ public class SingleThreadedRagdoll : MonoBehaviour
             Simulation.StepImmediate(Input, ref SimulationContext);
 
             // Export the changed motion data to body info
-            ExportData();
+            ExportData(Input, BodyInfos);
         }
     }
 
+#if HAVOK_PHYSICS_EXISTS
+    private struct SingleThreadedPhysicsHavokSimulationJob : IJob
+    {
+        public SimulationStepInput Input;
+        public Havok.Physics.SimulationContext SimulationContext;
+
+        public NativeList<BodyInfo> Bodies;
+        public NativeList<JointInfo> Joints;
+
+        public NativeHashMap<int, int> BodyInfoToBodiesIndexMap;
+
+        public void Execute()
+        {
+            // Create the physics world
+            SingleThreadedPhysicsSimulationJob.CreateBodies(Input, Bodies, BodyInfoToBodiesIndexMap);
+            SingleThreadedPhysicsSimulationJob.CreateJoints(Input, Joints, BodyInfoToBodiesIndexMap);
+
+            // Build the broadphase
+            Input.World.CollisionWorld.BuildBroadphase(ref Input.World, Input.TimeStep, Input.Gravity);
+
+            // Step the physics world
+            Havok.Physics.HavokSimulation.StepImmediate(Input, ref SimulationContext);
+
+            // Export the changed motion data to body info
+            SingleThreadedPhysicsSimulationJob.ExportData(Input, Bodies);
+        }
+    }
+#endif
+
     public void Start()
     {
-        m_BodyIndexToGameObjectMapping = new Dictionary<int, GameObject>();
-        m_Bodies = new NativeList<BodyInfo>(Allocator.Persistent);
-        m_Joints = new NativeList<JointInfo>(Allocator.Persistent);
+        SimulationContext = new SimulationContext();
+
+#if HAVOK_PHYSICS_EXISTS
+        HavokSimulationContext = new Havok.Physics.SimulationContext(Havok.Physics.HavokConfiguration.Default);
+
+        PhysicsStep stepComponent = PhysicsStep.Default;
+        var buildPhysicsWorld = BasePhysicsDemo.DefaultWorld.GetExistingSystem<Unity.Physics.Systems.BuildPhysicsWorld>();
+        if (buildPhysicsWorld.HasSingleton<PhysicsStep>())
+        {
+            stepComponent = buildPhysicsWorld.GetSingleton<PhysicsStep>();
+            SimulateHavok = (stepComponent.SimulationType == SimulationType.HavokPhysics);
+        }
+#endif
+
+        m_BodyInfoIndexToGameObjectMapping = new Dictionary<int, GameObject>();
+        m_BodyInfos = new NativeList<BodyInfo>(Allocator.Persistent);
+        m_JointInfos = new NativeList<JointInfo>(Allocator.Persistent);
         PhysicsWorld = new PhysicsWorld(0, 0, 0);
 
-        GameObject[] objects = FindObjectsOfType<GameObject>();
-        for (int i = 0; i < objects.Length; i++)
+        // Create all the Bodies
+        var basicBodyInfos = GameObject.FindObjectsOfType<BasicBodyInfo>();
+        for (int i = 0; i < basicBodyInfos.Length; i++)
         {
-            var basicBodyInfo = objects[i].GetComponent<BasicBodyInfo>();
-            if (basicBodyInfo == null)
-            {
-                continue;
-            }
-
-            var body = CreateBody(objects[i]);
+            var basicBodyInfo = basicBodyInfos[i];
+            var body = CreateBody(basicBodyInfo.gameObject);
             if (body.IsDynamic)
             {
                 m_NumDynamicBodies++;
             }
-            else
-            {
-                m_NumStaticBodies++;
-            }
-            m_BodyIndexToGameObjectMapping.Add(m_Bodies.Length, objects[i]);
-            m_Bodies.Add(body);
+            m_BodyInfoIndexToGameObjectMapping.Add(i, basicBodyInfo.gameObject);
+            m_BodyInfos.Add(body);
         }
-        CreateRagdoll();
-    }
 
-    private void CreateRagdoll()
-    {
-        GameObject[] objects = FindObjectsOfType<GameObject>();
-
-        for (int i = 0; i < objects.Length; i++)
+        // Create all the Joints
+        var basicJointInfos = GameObject.FindObjectsOfType<BasicJointInfo>();
+        for (int i = 0; i < basicJointInfos.Length; i++)
         {
-            BasicRagdollJoint joint = objects[i].GetComponent<BasicRagdollJoint>();
-            if (joint == null)
+            var basicJointInfo = basicJointInfos[i];
+
+            Assert.IsTrue(basicJointInfo.ConnectedGameObject != null);
+
+            GameObject bodyA = basicJointInfo.ConnectedGameObject;
+            GameObject bodyB = basicJointInfo.gameObject;
+
+            var jointData = CreateJoint(bodyA, bodyB, basicJointInfo.Type);
+            GetBodyIndices(bodyA, bodyB, out int bodyIndexA, out int bodyIndexB);
+            var joint = new JointInfo
             {
-                continue;
-            }
-
-            Assert.IsTrue(joint.ConnectedGameObject != null);
-
-            GameObject bodyA = joint.ConnectedGameObject;
-            GameObject bodyB = objects[i];
-
-            bool enableCollisions = false;
-
-            BlobAssetReference<JointData> hinge = default;
-            BlobAssetReference<JointData> jointData0 = default;
-            BlobAssetReference<JointData> jointData1 = default;
-
-            switch (joint.Type)
-            {
-                case BasicRagdollJoint.RagdollDemoJointType.Neck:
-                    {
-                        CreateNeck(bodyA, bodyB, out jointData0, out jointData1);
-                    }
-                    break;
-                case BasicRagdollJoint.RagdollDemoJointType.Shoulder:
-                    {
-                        CreateShoulder(bodyA, bodyB, out jointData0, out jointData1);
-                    }
-                    break;
-                case BasicRagdollJoint.RagdollDemoJointType.Elbow:
-                    {
-                        hinge = CreateElbow(bodyA, bodyB);
-                    }
-                    break;
-                case BasicRagdollJoint.RagdollDemoJointType.Wrist:
-                    {
-                        hinge = CreateWrist(bodyA, bodyB);
-                    }
-                    break;
-                case BasicRagdollJoint.RagdollDemoJointType.Waist:
-                    {
-                        CreateWaist(bodyA, bodyB, out jointData0, out jointData1);
-                    }
-                    break;
-                case BasicRagdollJoint.RagdollDemoJointType.Hip:
-                    {
-                        CreateHip(bodyA, bodyB, out jointData0, out jointData1);
-                        enableCollisions = true;
-                    }
-                    break;
-                case BasicRagdollJoint.RagdollDemoJointType.Knee:
-                    {
-                        hinge = CreateKnee(bodyA, bodyB);
-                    }
-                    break;
-                case BasicRagdollJoint.RagdollDemoJointType.Ankle:
-                    {
-                        hinge = CreateAnkle(bodyA, bodyB);
-                    }
-                    break;
-                default:
-                    break;
-            }
-
-            GetBodyIndices(bodyA, bodyB, out int bodyAIndex, out int bodyBIndex);
-
-            if (hinge != default)
-            {
-                CreateJointInfo(hinge, bodyAIndex, bodyBIndex, enableCollisions);
-            }
-
-            if (jointData0 != default)
-            {
-                CreateJointInfo(jointData0, bodyAIndex, bodyBIndex, enableCollisions);
-            }
-
-            if (jointData1 != default)
-            {
-                CreateJointInfo(jointData1, bodyAIndex, bodyBIndex, enableCollisions);
-            }
+                JointData = jointData,
+                BodyIndexA = bodyIndexA,
+                BodyIndexB = bodyIndexB,
+                EnableCollision = false,
+            };
+            m_JointInfos.Add(joint);
         }
     }
 
-    private void GetBodyIndices(GameObject bodyA, GameObject bodyB, out int bodyAIndex, out int bodyBIndex)
+    private void GetBodyIndices(GameObject bodyA, GameObject bodyB, out int bodyIndexA, out int bodyIndexB)
     {
-        bodyAIndex = bodyBIndex = -1;
+        bodyIndexA = bodyIndexB = -1;
 
-        for (int i = 0; i < m_Bodies.Length; i++)
+        for (int i = 0; i < m_BodyInfos.Length; i++)
         {
-            if (m_BodyIndexToGameObjectMapping.TryGetValue(i, out GameObject go))
+            if (m_BodyInfoIndexToGameObjectMapping.TryGetValue(i, out GameObject go))
             {
                 if (go == bodyA)
                 {
-                    bodyAIndex = i;
+                    bodyIndexA = i;
                 }
 
                 if (go == bodyB)
                 {
-                    bodyBIndex = i;
+                    bodyIndexB = i;
                 }
             }
         }
     }
 
-    private void CreateJointInfo(BlobAssetReference<JointData> jointData, int bodyAIndex, int bodyBIndex, bool enabledCollisions)
-    {
-        m_Joints.Add(new JointInfo
-        {
-            JointData = jointData,
-            BodyAIndex = bodyAIndex,
-            BodyBIndex = bodyBIndex,
-            EnabledCollisions = enabledCollisions
-        });
-        m_NumJoints++;
-    }
-
     private void OnDestroy()
     {
-        if (m_Bodies.IsCreated)
+        if (m_BodyInfos.IsCreated)
         {
-            m_Bodies.Dispose();
+            m_BodyInfos.Dispose();
         }
 
-        if (m_Joints.IsCreated)
+        if (m_JointInfos.IsCreated)
         {
-            m_Joints.Dispose();
+            m_JointInfos.Dispose();
         }
 
         PhysicsWorld.Dispose();
         SimulationContext.Dispose();
+#if HAVOK_PHYSICS_EXISTS
+        HavokSimulationContext.Dispose();
+#endif
     }
 }

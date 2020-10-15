@@ -1,23 +1,12 @@
-﻿using Unity.Entities;
+using Unity.Entities;
 using Unity.Mathematics;
-using UnityEngine;
 using Unity.Physics;
-using Unity.Physics.Extensions;
-using static Unity.Physics.Math;
-using Unity.Collections;
-
 
 public class InvalidPhysicsJointDemo : BasePhysicsDemo
 {
     protected override void Start()
     {
         base.Start();
-
-        // Enable the joint viewer
-        SetDebugDisplay(new Unity.Physics.Authoring.PhysicsDebugDisplayData
-        {
-            DrawJoints = 1
-        });
 
         BlobAssetReference<Unity.Physics.Collider> collider = Unity.Physics.BoxCollider.Create(new BoxGeometry
         {
@@ -36,16 +25,19 @@ public class InvalidPhysicsJointDemo : BasePhysicsDemo
             float3 pivotWorld = new float3(-2f, 0, 0);
             Entity body = CreateDynamicBody(pivotWorld, quaternion.identity, collider, float3.zero, float3.zero, 1.0f);
 
+            // create extra dynamic body to trigger havok sync after the first one is destroyed
+            CreateDynamicBody(pivotWorld * 2.0f, quaternion.identity, collider, float3.zero, float3.zero, 1.0f);
+
             // add timeout on dynamic body after 15 frames.
-            manager.AddComponentData<EntityKiller>(body, new EntityKiller() { TimeToDie = 15 });
+            manager.AddComponentData(body, new LifeTime { Value = 15 });
 
             // Create the joint
             float3 pivotLocal = float3.zero;
-            BlobAssetReference<JointData> jointData = JointData.CreateBallAndSocket(pivotLocal, pivotWorld);
-            var jointEntity = CreateJoint(jointData, body, Entity.Null);
+            var joint = PhysicsJoint.CreateBallAndSocket(pivotLocal, pivotWorld);
+            var jointEntity = CreateJoint(joint, body, Entity.Null);
 
             // add timeout on joint entity after 30 frames.
-            manager.AddComponentData<EntityKiller>(jointEntity, new EntityKiller() { TimeToDie = 30 });
+            manager.AddComponentData(jointEntity, new LifeTime { Value = 30 });
         }
 
         // Add two static bodies constrained together
@@ -57,11 +49,22 @@ public class InvalidPhysicsJointDemo : BasePhysicsDemo
 
             // Create the joint
             float3 pivotLocal = float3.zero;
-            BlobAssetReference<JointData> jointData = JointData.CreateBallAndSocket(pivotLocal, pivotLocal);
-            var jointEntity = CreateJoint(jointData, bodyA, bodyB);
+            var joint = PhysicsJoint.CreateBallAndSocket(pivotLocal, pivotLocal);
+            var jointEntity = CreateJoint(joint, bodyA, bodyB);
 
             // add timeout on joint entity after 15 frames.
-            manager.AddComponentData<EntityKiller>(jointEntity, new EntityKiller() { TimeToDie = 15 });
+            manager.AddComponentData(jointEntity, new LifeTime { Value = 15 });
+        }
+
+        // Add two dynamic bodies constrained together with 0 dimension
+        {
+            // Create a body
+            Entity bodyA = CreateDynamicBody(new float3(0, 5.0f, 0), quaternion.identity, collider, float3.zero, float3.zero, 1.0f);
+            Entity bodyB = CreateDynamicBody(new float3(0, 6.0f, 0), quaternion.identity, collider, float3.zero, float3.zero, 1.0f);
+
+            // Create the joint
+            var joint = PhysicsJoint.CreateLimitedDOF(RigidTransform.identity, new bool3(false), new bool3(false));
+            CreateJoint(joint, bodyA, bodyB);
         }
     }
 }

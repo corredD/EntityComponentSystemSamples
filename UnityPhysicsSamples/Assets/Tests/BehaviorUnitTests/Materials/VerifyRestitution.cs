@@ -1,4 +1,4 @@
-﻿using Unity.Collections;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -24,51 +24,43 @@ namespace Unity.Physics.Tests
         void OnEnable()
         {
             var system = World.DefaultGameObjectInjectionWorld.GetOrCreateSystem<VerifyRestitutionSystem>();
-            system.StepCounter = 0;
+            system.ResetStartTime();
         }
     }
 
+    [UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
     [UpdateBefore(typeof(StepPhysicsWorld))]
-    public class VerifyRestitutionSystem : ComponentSystem
+    public class VerifyRestitutionSystem : SystemBase
     {
-        EntityQuery m_VerificationGroup;
-        public int StepCounter;
-        
+        double m_StartSeconds;
+        const double kCheckSeconds = 0.9;
+
+        public void ResetStartTime() => m_StartSeconds = Time.ElapsedTime;
+
         protected override void OnCreate()
         {
-            StepCounter = 0;
-            m_VerificationGroup = GetEntityQuery(new EntityQueryDesc
-            {
-                All = new ComponentType[] { typeof(VerifyRestitutionData) }
-            });
+            ResetStartTime();
         }
 
         protected override void OnUpdate()
         {
-            StepCounter++;
-
-            // Make sure we only collect max Y value when the body is bouncing back up
-            using (var entities = m_VerificationGroup.ToEntityArray(Allocator.TempJob))
-            {
-                foreach (var entity in entities)
+            double elapsedSeconds = Time.ElapsedTime - m_StartSeconds;
+            Entities
+                .WithoutBurst()// asserts don't fire from Burst loops
+                .ForEach((Entity entity, ref VerifyRestitutionData verifyRestitution, in Translation translation, in PhysicsVelocity velocity) =>
                 {
-                    var translation = EntityManager.GetComponentData<Translation>(entity);
-                    var velocity = EntityManager.GetComponentData<PhysicsVelocity>(entity).Linear;
-                    var verifyRestitution = EntityManager.GetComponentData<VerifyRestitutionData>(entity);
-                    if (velocity.y > 0)
+                    if (velocity.Linear.y > 0)
                     {
                         verifyRestitution.MaxY = math.max(verifyRestitution.MaxY, translation.Value.y);
-
-                        if (StepCounter > 55)
-                        {
-                            // Biggest bounce should be near the original height, which is 1
-                            Assert.IsTrue(verifyRestitution.MaxY > 0.9f);
-                        }
-
-                        PostUpdateCommands.SetComponent(entity, verifyRestitution);
                     }
-                }
-            }
+
+                    // the ball shall have reached its apex after a certain amount of time has passed
+                    if (elapsedSeconds > kCheckSeconds)
+                    {
+                        // Biggest bounce should be near the original height, which is 1
+                        Assert.IsTrue(verifyRestitution.MaxY > 0.9f);
+                    }
+                }).Run();
         }
     }
 }

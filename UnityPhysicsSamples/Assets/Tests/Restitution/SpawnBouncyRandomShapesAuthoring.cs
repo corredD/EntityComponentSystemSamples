@@ -1,4 +1,4 @@
-﻿using Unity.Collections;
+using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -17,6 +17,7 @@ struct BouncySpawnSettings : IComponentData, ISpawnSettings
 {
     public Entity Prefab { get; set; }
     public float3 Position { get; set; }
+    public quaternion Rotation { get; set; }
     public float3 Range { get; set; }
     public int Count { get; set; }
     public float Restitution;
@@ -41,7 +42,7 @@ class SpawnBouncyRandomShapesSystem : SpawnRandomObjectsSystemBase<BouncySpawnSe
         {
             var oldCollider = component.ColliderPtr;
             var newCollider = (Collider*)UnsafeUtility.Malloc(oldCollider->MemorySize, 16, Allocator.Temp);
-            
+
             UnsafeUtility.MemCpy(newCollider, oldCollider, oldCollider->MemorySize);
 
             var material = ((ConvexColliderHeader*)newCollider)->Material;
@@ -64,4 +65,3 @@ class SpawnBouncyRandomShapesSystem : SpawnRandomObjectsSystemBase<BouncySpawnSe
         EntityManager.SetComponentData(instance, collider);
     }
 }
-

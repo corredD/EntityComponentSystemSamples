@@ -5,7 +5,9 @@ using System.Reflection;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
+using Unity.Physics.Authoring;
 using Unity.Physics.Extensions;
+using Unity.Physics.Systems;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
@@ -20,59 +22,54 @@ public class BasePhysicsDemo : MonoBehaviour
 {
     public static World DefaultWorld => World.DefaultGameObjectInjectionWorld;
 
-    protected Entity stepper;
+    public static void ResetDefaultWorld()
+    {
+        DefaultWorld.EntityManager.CompleteAllJobs();
+        foreach (var system in DefaultWorld.Systems)
+        {
+            system.Enabled = false;
+        }
+
+        DefaultWorld.Dispose();
+        DefaultWorldInitialization.Initialize("Default World", false);
+    }
 
     public Material dynamicMaterial;
     public Material staticMaterial;
 
-    private bool _didInit = false;
-
-    public SimulationType StepType = SimulationType.UnityPhysics;
-
-    protected void init(float3 gravity, bool addCameraControl = true)
+    protected void init()
     {
-        _didInit = true;
-
-        // Camera control
-        if( addCameraControl )
-        {
-            GameObject mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
-            CameraControl cameraControl = mainCamera.AddComponent<CameraControl>();
-            cameraControl.lookSpeedH = 0.6f;
-            cameraControl.lookSpeedV = 0.6f;
-            cameraControl.zoomSpeed = 1.0f;
-            cameraControl.dragSpeed = 4.0f;
-        }
-
-
-        // Create the stepper
-        var entityManager = DefaultWorld.EntityManager;
-        ComponentType[] componentTypes = {
-            typeof(PhysicsStep),
-            typeof(Unity.Physics.Authoring.PhysicsDebugDisplayData),
-            typeof(MousePick)
-        };
-        stepper = entityManager.CreateEntity(componentTypes);
-        entityManager.SetComponentData(stepper, new PhysicsStep
-        {
-            SimulationType = StepType,
-            Gravity = gravity,
-            SolverIterationCount = PhysicsStep.Default.SolverIterationCount,
-            ThreadCountHint = PhysicsStep.Default.ThreadCountHint
-        });
-        // Add options for visually debugging physics information
-        entityManager.SetComponentData(stepper, new Unity.Physics.Authoring.PhysicsDebugDisplayData { });
-
-
         // Load assets
         //dynamicMaterial = (Material)Resources.Load("Materials/PhysicsDynamicMaterial");
         //staticMaterial = (Material)Resources.Load("Materials/PhysicsStaticMaterial");
     }
 
+#if !UNITY_EDITOR
+    void OnEnable()
+    {
+        Application.logMessageReceivedThreaded += HandleLogEntry;
+    }
+
+    void HandleLogEntry(string logEntry, string stackTrace, LogType logType)
+    {
+        if (logType == LogType.Exception)
+        {
+            // Log exception and exit with non-zero error code
+            UnityEngine.Debug.Log($"Caught an exception, exiting... \n {logEntry} \n {stackTrace}");
+            Application.Quit(1);
+        }
+    }
+
+    void OnDisable()
+    {
+        Application.logMessageReceivedThreaded -= HandleLogEntry;
+    }
+
+#endif
+
     protected virtual void Start()
     {
-        if( !_didInit )
-            init(new float3(0, -9.81f, 0));
+        init();
     }
 
     //
@@ -91,21 +88,11 @@ public class BasePhysicsDemo : MonoBehaviour
     static readonly FieldInfo k_DisplayResultsMesh = k_DisplayResult.GetField("Mesh");
     static readonly PropertyInfo k_DisplayResultsTransform = k_DisplayResult.GetProperty("Transform");
 
-    Entity CreateBody(float3 position, quaternion orientation, BlobAssetReference<Collider> collider,
-        float3 linearVelocity, float3 angularVelocity, float mass, bool isDynamic)
+    internal static void CreateRenderMeshForCollider(
+        EntityManager entityManager, Entity entity, BlobAssetReference<Collider> collider, Material material
+    )
     {
-        var entityManager = DefaultWorld.EntityManager;
-
-        Entity entity = entityManager.CreateEntity(new ComponentType[] { });
-
-        entityManager.AddComponentData(entity, new LocalToWorld { });
-        entityManager.AddComponentData(entity, new Translation { Value = position });
-        entityManager.AddComponentData(entity, new Rotation { Value = orientation });
-
-        var colliderComponent = new PhysicsCollider { Value = collider };
-        entityManager.AddComponentData(entity, colliderComponent);
-
-        var mesh = new Mesh();
+        var mesh = new Mesh { hideFlags = HideFlags.DontSave };
         var instances = new List<CombineInstance>(8);
         var numVertices = 0;
         foreach (var displayResult in (IEnumerable)k_DrawComponent_BuildDebugDisplayMesh.Invoke(null, new object[] { collider }))
@@ -125,21 +112,38 @@ public class BasePhysicsDemo : MonoBehaviour
         entityManager.AddSharedComponentData(entity, new RenderMesh
         {
             mesh = mesh,
-            material = isDynamic ? dynamicMaterial : staticMaterial
+            material = material
         });
         entityManager.AddComponentData(entity, new RenderBounds { Value = mesh.bounds.ToAABB() });
+    }
+
+    Entity CreateBody(float3 position, quaternion orientation, BlobAssetReference<Collider> collider,
+        float3 linearVelocity, float3 angularVelocity, float mass, bool isDynamic)
+    {
+        var entityManager = DefaultWorld.EntityManager;
+
+        Entity entity = entityManager.CreateEntity(new ComponentType[] {});
+
+        entityManager.AddComponentData(entity, new LocalToWorld {});
+        entityManager.AddComponentData(entity, new Translation { Value = position });
+        entityManager.AddComponentData(entity, new Rotation { Value = orientation });
+
+        var colliderComponent = new PhysicsCollider { Value = collider };
+        entityManager.AddComponentData(entity, colliderComponent);
+
+        CreateRenderMeshForCollider(entityManager, entity, collider, isDynamic ? dynamicMaterial : staticMaterial);
 
         if (isDynamic)
         {
             entityManager.AddComponentData(entity, PhysicsMass.CreateDynamic(colliderComponent.MassProperties, mass));
 
             float3 angularVelocityLocal = math.mul(math.inverse(colliderComponent.MassProperties.MassDistribution.Transform.rot), angularVelocity);
-            entityManager.AddComponentData(entity, new PhysicsVelocity()
+            entityManager.AddComponentData(entity, new PhysicsVelocity
             {
                 Linear = linearVelocity,
                 Angular = angularVelocityLocal
             });
-            entityManager.AddComponentData(entity, new PhysicsDamping()
+            entityManager.AddComponentData(entity, new PhysicsDamping
             {
                 Linear = 0.01f,
                 Angular = 0.05f
@@ -160,30 +164,20 @@ public class BasePhysicsDemo : MonoBehaviour
         return CreateBody(position, orientation, collider, linearVelocity, angularVelocity, mass, true);
     }
 
-    protected unsafe Entity CreateJoint(BlobAssetReference<JointData> jointData, Entity entityA, Entity entityB, bool enableCollision = false)
+    protected Entity CreateJoint(PhysicsJoint joint, Entity entityA, Entity entityB, bool enableCollision = false)
     {
         var entityManager = DefaultWorld.EntityManager;
-        ComponentType[] componentTypes = new ComponentType[1];
-        componentTypes[0] = typeof(PhysicsJoint);
-        Entity jointEntity = entityManager.CreateEntity(componentTypes);
-        entityManager.SetComponentData(jointEntity, new PhysicsJoint
+        ComponentType[] componentTypes =
         {
-            JointData = jointData,
-            EntityA = entityA,
-            EntityB = entityB,
-            EnableCollision = (enableCollision ? 1 : 0)
-        });
+            typeof(PhysicsConstrainedBodyPair),
+            typeof(PhysicsJoint)
+        };
+        Entity jointEntity = entityManager.CreateEntity(componentTypes);
+
+        entityManager.SetComponentData(jointEntity, new PhysicsConstrainedBodyPair(entityA, entityB, enableCollision));
+        entityManager.SetComponentData(jointEntity, joint);
+
         return jointEntity;
-    }
-
-    //
-    // Helper methods
-    //
-
-    protected void SetDebugDisplay(Unity.Physics.Authoring.PhysicsDebugDisplayData debugDisplay)
-    {
-        var entityManager = DefaultWorld.EntityManager;
-        entityManager.SetComponentData<Unity.Physics.Authoring.PhysicsDebugDisplayData>(stepper, debugDisplay);
     }
 
     protected RigidTransform GetBodyTransform(Entity entity)

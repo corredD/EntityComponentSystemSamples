@@ -11,8 +11,9 @@ namespace Unity.Physics.Samples.Test
 {
     [DisableAutoCreation]
     [AlwaysUpdateSystem]
+    [UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
     [UpdateBefore(typeof(BuildPhysicsWorld))]
-    class EnsureSTSimulation : ComponentSystem
+    class EnsureSTSimulation : SystemBase
     {
         protected override void OnUpdate()
         {
@@ -43,10 +44,16 @@ namespace Unity.Physics.Samples.Test
         {
             var sceneCount = SceneManager.sceneCountInBuildSettings;
             var scenes = new List<string>();
-            for(int sceneIndex = 0; sceneIndex < sceneCount; ++sceneIndex)
+            for (int sceneIndex = 0; sceneIndex < sceneCount; ++sceneIndex)
             {
                 var scenePath = SceneUtility.GetScenePathByBuildIndex(sceneIndex);
-                if (scenePath.Contains("InitTestScene"))
+                if (scenePath.Contains("InitTestScene")
+                    // in order to circumvent API breakages that do not affect physics, some packages are removed from the project on CI
+                    // any scenes referencing asset types in com.unity.inputsystem must be guarded behind UNITY_INPUT_SYSTEM_EXISTS
+#if !UNITY_INPUT_SYSTEM_EXISTS
+                    || scenePath.Contains("LoaderScene")
+#endif
+                )
                     continue;
 #if UNITY_ANDROID && !UNITY_64
                 // Terrain scene needs a lot of memory, skip it on Android armv7
@@ -61,22 +68,33 @@ namespace Unity.Physics.Samples.Test
         }
 
         [UnityTest]
-        [Timeout(60000)]
+        [Timeout(240000)]
         public abstract IEnumerator LoadScenes([ValueSource(nameof(GetScenes))] string scenePath);
 
         [TearDown]
         public void TearDown()
         {
-            EntitiesCleanup();
+            ResetDefaultWorld();
         }
 
-        protected static void EntitiesCleanup()
+        protected static void ResetDefaultWorld()
         {
             var entityManager = DefaultWorld.EntityManager;
             var entities = entityManager.GetAllEntities();
             entityManager.DestroyEntity(entities);
-            entityManager.CompleteAllJobs();
             entities.Dispose();
+
+            if (DefaultWorld.IsCreated)
+            {
+                var systems = DefaultWorld.Systems;
+                foreach (var s in systems)
+                {
+                    s.Enabled = false;
+                }
+                DefaultWorld.Dispose();
+            }
+
+            DefaultWorldInitialization.Initialize("Default World", false);
         }
     }
 
@@ -84,7 +102,7 @@ namespace Unity.Physics.Samples.Test
     class UnityPhysicsSamplesTestMT : UnityPhysicsSamplesTest
     {
         [UnityTest]
-        [Timeout(60000)]
+        [Timeout(240000)]
         public override IEnumerator LoadScenes([ValueSource(nameof(GetScenes))] string scenePath)
         {
             // Log scene name in case Unity crashes and test results aren't written out.
@@ -93,8 +111,9 @@ namespace Unity.Physics.Samples.Test
 
             SceneManager.LoadScene(scenePath);
             yield return new WaitForSeconds(1);
-            EntitiesCleanup();
+            ResetDefaultWorld();
             yield return new WaitForFixedUpdate();
+
             LogAssert.NoUnexpectedReceived();
         }
     }
@@ -103,7 +122,7 @@ namespace Unity.Physics.Samples.Test
     class UnityPhysicsSamplesTestST : UnityPhysicsSamplesTest
     {
         [UnityTest]
-        [Timeout(60000)]
+        [Timeout(240000)]
         public override IEnumerator LoadScenes([ValueSource(nameof(GetScenes))] string scenePath)
         {
             // Log scene name in case Unity crashes and test results aren't written out.
@@ -119,16 +138,14 @@ namespace Unity.Physics.Samples.Test
 
                 stSystem = new EnsureSTSimulation();
                 world.AddSystem(stSystem);
-                world.GetExistingSystem<SimulationSystemGroup>().AddSystemToUpdateList(stSystem);
+                world.GetExistingSystem<FixedStepSimulationSystemGroup>().AddSystemToUpdateList(stSystem);
             }
 
             SceneManager.LoadScene(scenePath);
             yield return new WaitForSeconds(1);
-            EntitiesCleanup();
+            ResetDefaultWorld();
             yield return new WaitForFixedUpdate();
 
-            world.GetExistingSystem<SimulationSystemGroup>().RemoveSystemFromUpdateList(stSystem);
-            world.DestroySystem(stSystem);
             LogAssert.NoUnexpectedReceived();
         }
     }

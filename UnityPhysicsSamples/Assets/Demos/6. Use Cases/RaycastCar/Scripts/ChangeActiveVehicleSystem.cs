@@ -1,14 +1,12 @@
-using System;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 
-struct ActiveVehicle : IComponentData { }
+struct ActiveVehicle : IComponentData {}
 
-[UpdateAfter(typeof(DemoInputGatheringSystem))]
-class ChangeActiveVehicleSystem : ComponentSystem
+class ChangeActiveVehicleSystem : SystemBase
 {
-    struct AvailableVehicle : ISystemStateComponentData { }
+    struct AvailableVehicle : ISystemStateComponentData {}
 
     EntityQuery m_ActiveVehicleQuery;
     EntityQuery m_VehicleInputQuery;
@@ -79,7 +77,6 @@ class ChangeActiveVehicleSystem : ComponentSystem
                     activeVehicle = activeVehicles[0];
                     EntityManager.RemoveComponent<ActiveVehicle>(m_AllVehicles);
                 }
-
                 // otherwise use the first vehicle found
                 else
                     activeVehicle = m_AllVehicles[0];

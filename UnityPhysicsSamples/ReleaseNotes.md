@@ -1,7 +1,72 @@
+## [Samples Project for 0.5.0-preview] - 2020-09-15
+
+### Changes
+
+* Moved `LimitDOF` joint into core Unity Physics package
+
+### Fixes
+
+* Fixed issue with the `FreeHingeJoint.Create` authoring script not setting the `BodyFrame.PerpendicularAxis`
+
+### Known Issues
+
+* `RaycastCar` demo has issues that sometimes produce NaN values.
+
+## [Samples Project for 0.4.1-preview] - 2020-07-28
+
+### Changes
+
+* Added simple `1b. Respresentations` sample highlighting graphical and physical representations of the world.
+* Added simple `1c. Conversion` sample, along with worked examples moving from GameObjects (Data & Logic) to DOTS.
+    * New `1c1. GameObjects GravityWell` sample - showing Data conversion working but not Logic conversion.
+    * New `1c2. Covertible GravityWell` sample - showing Data & Logic conversion.
+    * New `1c3. DOTS GravityWell` sample - showing same scene without GameObject conversion.
+* Updated `2a2. Collider Parade - Advanced` sample with extra setup samples involving multiple graphics mesh and/or multiple physics shapes.
+* Updated `4. Joints\Ragdoll` demo to use new ragdoll joint interface and allow modification of joint limits.
+* Added `5d. Change Velocity` demo showing a local velocity change.
+* Added `5f. Change Surface Velocity` sample highlighting a conveyor belt use case with no moving parts.
+
+## [Samples Project for 0.4.0-preview.5] - 2020-06-18
+
+### Changes
+
+* Updated the following packages:
+    * Added Data Flow Graph `0.14.0-preview.2`
+    * Added DOTS Editor `0.7.0-preview.1`
+    * Hybrid Renderer from `0.4.0-preview.8` to `0.5.1-preview.18`
+* The `PrismaticJoint` example no longer includes `MinDistanceFromAxis` or `MaxDistanceFromAxis` parameters.
+* The `RagdollJoint` example now takes perpendicular limits in the range of (-90, 90) rather than (0, 180).
+* Added `5d. Kinematic Motion` to illustrate different ways of moving kinematic bodies.
+* Improved usability of trigger events and collision events:
+	* Events (StatefulTriggerEvent and StatefulCollisionEvent) have states indicating overlap or colliding state of two bodies:
+		* Enter - the bodies didn't overlap or collide in the previous frame, and they do in the current frame
+		* Stay - the bodies did overlap or collide in the previous frame, and they do in the current frame
+		* Exit - the bodies did overlap or collide in the previous frame, and they do not in the current frame
+	* Events (StatefulTriggerEvent and StatefulCollisionEvent) are stored in DynamicBuffers of entities that raise them
+	* Reworked following demos to demonstrate new trigger event approach:
+		* `2d1a. Triggers - Change Material`
+		* `2d1b. Triggers - Portals`
+		* `2d1c. Triggers - Force Field`
+	* `2d2a. Collision Events - Event States` added to demonstrate new collision event approach.
+* Exposed trigger events and collision events of CharacterController
+* CharacterController body is now using a `CollisionResponse.None` collision response on its body to avoid reporting duplicated collision/trigger events coming from the physics engine.
+* `Demos/2. Setup/2b. Motion Properties/2b1. Motion Properties - Mass`, `Tests/Pyramids` and a group of demos under `Tests/Stacking` now showcase new solver stabilization features/strengths and weaknesses/trade-offs.
+
+## [Samples Project for 0.3.2-preview] - 2020-04-16
+
+### Changes
+
+* Updated the following packages:
+    * Removed DOTS Editor
+    * Hybrid Renderer from `0.3.4-preview.24` to `0.4.0-preview.8`
+    * Input System from `1.0.0-preview.5` to `1.0.0-preview.6`
+* Fixed character controller tunnelling issue.
+* Made standalone player quit (with exit code 1) if an exception is caught in BasePhysicsDemo or derived classes.
+
 ## [Samples Project for 0.3.1-preview] - 2020-03-19
 
 ### Changes
-* Fixed a potential character controller tunneling issue.
+* Fixed a potential character controller tunnelling issue.
 * Removed the Lightweight RP package.
 
 ## [Samples Project for 0.3.0-preview] - 2020-03-12

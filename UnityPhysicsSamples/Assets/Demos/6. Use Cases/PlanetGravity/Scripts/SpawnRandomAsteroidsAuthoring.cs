@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Unity.Entities;
 using Unity.Physics;
 using Unity.Mathematics;
@@ -16,6 +16,7 @@ struct AsteroidSpawnSettings : IComponentData, ISpawnSettings
 {
     public Entity Prefab { get; set; }
     public float3 Position { get; set; }
+    public quaternion Rotation { get; set; }
     public float3 Range { get; set; }
     public int Count { get; set; }
     public float MassFactor;
@@ -23,7 +24,6 @@ struct AsteroidSpawnSettings : IComponentData, ISpawnSettings
 
 class SpawnRandomAsteroidsSystem : SpawnRandomObjectsSystemBase<AsteroidSpawnSettings>
 {
-
     Random m_RandomMass;
 
     internal override int GetRandomSeed(AsteroidSpawnSettings spawnSettings)

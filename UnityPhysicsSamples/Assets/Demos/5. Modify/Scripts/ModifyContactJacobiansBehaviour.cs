@@ -1,13 +1,12 @@
-﻿using System;
-using Unity.Physics;
-using Unity.Physics.Systems;
+using System;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using Math = Unity.Physics.Math;
+using Unity.Physics;
+using Unity.Physics.Systems;
 using UnityEngine;
-using Unity.Burst;
 
 public struct ModifyContactJacobians : IComponentData
 {
@@ -30,30 +29,48 @@ public class ModifyContactJacobiansBehaviour : MonoBehaviour, IConvertGameObject
 {
     void IConvertGameObjectToEntity.Convert(Entity entity, EntityManager dstManager, GameObjectConversionSystem conversionSystem)
     {
-        dstManager.AddComponentData(entity, new ModifyContactJacobians { type = ModificationType } );
+        dstManager.AddComponentData(entity, new ModifyContactJacobians { type = ModificationType });
     }
-
 
     public ModifyContactJacobians.ModificationType ModificationType;
 }
 
 // A system which configures the simulation step to modify contact jacobains in various ways
+[UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
 [UpdateBefore(typeof(StepPhysicsWorld))]
-public class ModifyContactJacobiansSystem : JobComponentSystem
+public class ModifyContactJacobiansSystem : SystemBase
 {
-    EntityQuery m_ContactModifierGroup;
     StepPhysicsWorld m_StepPhysicsWorld;
+    SimulationCallbacks.Callback m_PreparationCallback;
+    SimulationCallbacks.Callback m_JacobianModificationCallback;
 
     protected override void OnCreate()
     {
         m_StepPhysicsWorld = World.GetOrCreateSystem<StepPhysicsWorld>();
-        m_ContactModifierGroup = GetEntityQuery(new EntityQueryDesc
+
+        m_PreparationCallback = (ref ISimulation simulation, ref PhysicsWorld world, JobHandle inDeps) =>
+        {
+            return new SetContactFlagsJob
+            {
+                modificationData = GetComponentDataFromEntity<ModifyContactJacobians>(true)
+            }.Schedule(simulation, ref world, inDeps);
+        };
+
+        m_JacobianModificationCallback = (ref ISimulation simulation, ref PhysicsWorld world, JobHandle inDeps) =>
+        {
+            return new ModifyJacobiansJob
+            {
+                modificationData = GetComponentDataFromEntity<ModifyContactJacobians>(true)
+            }.Schedule(simulation, ref world, inDeps);
+        };
+
+        RequireForUpdate(GetEntityQuery(new EntityQueryDesc
         {
             All = new ComponentType[] { typeof(ModifyContactJacobians) }
-        });
+        }));
     }
 
-    // This job reads the modify component and sets some data on the contact, to get propogated to the jacobian
+    // This job reads the modify component and sets some data on the contact, to get propagated to the jacobian
     // for processing in our jacobian modifier job. This is necessary because some flags require extra data to
     // be allocated along with the jacobian (e.g., SurfaceVelocity data typically does not exist). We also set
     // user data bits in the jacobianFlags to save us from looking up the ComponentDataFromEntity later.
@@ -65,17 +82,17 @@ public class ModifyContactJacobiansSystem : JobComponentSystem
 
         public void Execute(ref ModifiableContactHeader manifold, ref ModifiableContactPoint contact)
         {
-            Entity entityA = manifold.Entities.EntityA;
-            Entity entityB = manifold.Entities.EntityB;
+            Entity entityA = manifold.EntityA;
+            Entity entityB = manifold.EntityB;
 
             ModifyContactJacobians.ModificationType typeA = ModifyContactJacobians.ModificationType.None;
-            if(modificationData.Exists(entityA))
+            if (modificationData.HasComponent(entityA))
             {
                 typeA = modificationData[entityA].type;
             }
 
             ModifyContactJacobians.ModificationType typeB = ModifyContactJacobians.ModificationType.None;
-            if(modificationData.Exists(entityB))
+            if (modificationData.HasComponent(entityB))
             {
                 typeB = modificationData[entityB].type;
             }
@@ -98,21 +115,21 @@ public class ModifyContactJacobiansSystem : JobComponentSystem
         public ComponentDataFromEntity<ModifyContactJacobians> modificationData;
 
         // Don't do anything for triggers
-        public void Execute(ref ModifiableJacobianHeader h, ref ModifiableTriggerJacobian j){ }
+        public void Execute(ref ModifiableJacobianHeader h, ref ModifiableTriggerJacobian j) {}
 
         public void Execute(ref ModifiableJacobianHeader jacHeader, ref ModifiableContactJacobian contactJacobian)
         {
-            Entity entityA = jacHeader.Entities.EntityA;
-            Entity entityB = jacHeader.Entities.EntityB;
+            Entity entityA = jacHeader.EntityA;
+            Entity entityB = jacHeader.EntityB;
 
             ModifyContactJacobians.ModificationType typeA = ModifyContactJacobians.ModificationType.None;
-            if (modificationData.Exists(entityA))
+            if (modificationData.HasComponent(entityA))
             {
                 typeA = modificationData[entityA].type;
             }
 
             ModifyContactJacobians.ModificationType typeB = ModifyContactJacobians.ModificationType.None;
-            if (modificationData.Exists(entityB))
+            if (modificationData.HasComponent(entityB))
             {
                 typeB = modificationData[entityB].type;
             }
@@ -200,33 +217,11 @@ public class ModifyContactJacobiansSystem : JobComponentSystem
         }
     }
 
-    protected override JobHandle OnUpdate(JobHandle inputDeps)
+    protected override void OnUpdate()
     {
-        if (m_StepPhysicsWorld.Simulation.Type == SimulationType.NoPhysics)
-        {
-            return inputDeps;
-        }
+        if (m_StepPhysicsWorld.Simulation.Type == SimulationType.NoPhysics) return;
 
-        SimulationCallbacks.Callback preparationCallback = (ref ISimulation simulation, ref PhysicsWorld world, JobHandle inDeps) =>
-        {
-            return new SetContactFlagsJob
-            {
-                modificationData = GetComponentDataFromEntity<ModifyContactJacobians>(true)
-            }.Schedule(simulation, ref world, inDeps);
-        };
-
-        SimulationCallbacks.Callback jacobianModificationCallback = (ref ISimulation simulation, ref PhysicsWorld world, JobHandle inDeps) =>
-        {
-            return new ModifyJacobiansJob
-            {
-                modificationData = GetComponentDataFromEntity<ModifyContactJacobians>(true)
-            }.Schedule(simulation, ref world, inDeps);
-        };
-
-        m_StepPhysicsWorld.EnqueueCallback(SimulationCallbacks.Phase.PostCreateContacts, preparationCallback, inputDeps);
-        m_StepPhysicsWorld.EnqueueCallback(SimulationCallbacks.Phase.PostCreateContactJacobians, jacobianModificationCallback, inputDeps);
-
-        return inputDeps;
+        m_StepPhysicsWorld.EnqueueCallback(SimulationCallbacks.Phase.PostCreateContacts, m_PreparationCallback, Dependency);
+        m_StepPhysicsWorld.EnqueueCallback(SimulationCallbacks.Phase.PostCreateContactJacobians, m_JacobianModificationCallback, Dependency);
     }
-
 }

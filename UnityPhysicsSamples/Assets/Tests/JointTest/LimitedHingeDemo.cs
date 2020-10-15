@@ -1,7 +1,6 @@
-﻿using Unity.Physics;
+using Unity.Physics;
 using Unity.Entities;
 using Unity.Mathematics;
-using UnityEngine;
 using BoxCollider = Unity.Physics.BoxCollider;
 using Collider = Unity.Physics.Collider;
 using Material = Unity.Physics.Material;
@@ -11,13 +10,7 @@ public class LimitedHingeDemo : BasePhysicsDemo
 {
     protected override unsafe void Start()
     {
-        init(float3.zero); // no gravity
-
-        // Enable the joint viewer
-        SetDebugDisplay(new Unity.Physics.Authoring.PhysicsDebugDisplayData
-        {
-            DrawJoints = 1
-        });
+        init(); // no gravity
 
         Entity* entities = stackalloc Entity[2];
         entities[1] = Entity.Null;
@@ -40,9 +33,9 @@ public class LimitedHingeDemo : BasePhysicsDemo
             entities[i] = CreateDynamicBody(float3.zero, quaternion.identity, collider, float3.zero, new float3(0, 1 - i, 0), 1.0f);
         }
 
-        var jointFrame = new JointFrame { Axis = new float3(0, 1, 0), PerpendicularAxis = new float3(0, 0, 1) };
-        BlobAssetReference<JointData> hingeData =
-            JointData.CreateLimitedHinge(jointFrame, jointFrame, new FloatRange(-math.PI, -0.2f));
+        var jointFrame = new BodyFrame { Axis = new float3(0, 1, 0), PerpendicularAxis = new float3(0, 0, 1) };
+        PhysicsJoint hingeData =
+            PhysicsJoint.CreateLimitedHinge(jointFrame, jointFrame, new FloatRange(-math.PI, -0.2f));
         CreateJoint(hingeData, entities[0], entities[1]);
     }
 }

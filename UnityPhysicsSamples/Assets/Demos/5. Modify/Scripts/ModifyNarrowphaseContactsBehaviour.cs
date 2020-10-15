@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -19,7 +19,7 @@ public class ModifyNarrowphaseContactsBehaviour : MonoBehaviour, IConvertGameObj
 {
     public GameObject surfaceMesh = null;
 
-    void OnEnable() { }
+    void OnEnable() {}
 
     void IConvertGameObjectToEntity.Convert(Entity entity, EntityManager dstManager, GameObjectConversionSystem conversionSystem)
     {
@@ -35,8 +35,9 @@ public class ModifyNarrowphaseContactsBehaviour : MonoBehaviour, IConvertGameObj
 }
 
 // A system which configures the simulation step to rotate certain contact normals
+[UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
 [UpdateBefore(typeof(StepPhysicsWorld))]
-public class ModifyNarrowphaseContactsSystem : JobComponentSystem
+public class ModifyNarrowphaseContactsSystem : SystemBase
 {
     EntityQuery m_ContactModifierGroup;
     StepPhysicsWorld m_StepPhysicsWorld;
@@ -53,16 +54,16 @@ public class ModifyNarrowphaseContactsSystem : JobComponentSystem
         });
     }
 
-    protected override JobHandle OnUpdate(JobHandle inputDeps)
+    protected override void OnUpdate()
     {
         if (m_ContactModifierGroup.CalculateEntityCount() == 0)
         {
-            return inputDeps;
+            return;
         }
 
         if (m_StepPhysicsWorld.Simulation.Type == SimulationType.NoPhysics)
         {
-            return inputDeps;
+            return;
         }
 
         var modifiers = m_ContactModifierGroup.ToComponentDataArray<ModifyNarrowphaseContacts>(Allocator.TempJob);
@@ -81,8 +82,6 @@ public class ModifyNarrowphaseContactsSystem : JobComponentSystem
         modifiers.Dispose();
 
         m_StepPhysicsWorld.EnqueueCallback(SimulationCallbacks.Phase.PostCreateContacts, callback);
-
-        return inputDeps;
     }
 
     [BurstCompile]
@@ -94,7 +93,7 @@ public class ModifyNarrowphaseContactsSystem : JobComponentSystem
 
         public void Execute(ref ModifiableContactHeader contactHeader, ref ModifiableContactPoint contactPoint)
         {
-            bool bUpdateNormal = (contactHeader.BodyIndexPair.BodyAIndex == m_SurfaceRBIdx) || (contactHeader.BodyIndexPair.BodyBIndex == m_SurfaceRBIdx);
+            bool bUpdateNormal = (contactHeader.BodyIndexA == m_SurfaceRBIdx) || (contactHeader.BodyIndexB == m_SurfaceRBIdx);
 
             if (bUpdateNormal && contactPoint.Index == 0)
             {
